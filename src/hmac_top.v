@@ -342,7 +342,7 @@ module hmac_top
   );
  
   //
-  // ZUC AFU Instantiation
+  // AFU Instantiation
   //
 
   wire   [ 71:0]                       fld2usr_dm_p0_tuser_q0             ;
@@ -363,21 +363,21 @@ module hmac_top
   
 
   // Clock domains synchronizer
-  // 1. zuc clock generation, given the 100 Mhz clock
-  // 2. Adding two dual clock fifos to synch betwen the pcie and the zuc AXI streams
+  // 1. afu clock generation, given the 100 Mhz clock
+  // 2. Adding two dual clock fifos to synch betwen the pcie and the afu AXI streams
 
-  wire 				       usr2zuc_tvalid;
-  wire 				       usr2zuc_tready;
-  wire [511:0] 			       usr2zuc_tdata;
-  wire [63:0] 			       usr2zuc_tkeep;
-  wire 				       usr2zuc_tlast;
-  wire [71:0] 			       usr2zuc_tuser;
-  wire 				       zuc2usr_tvalid;
-  wire 				       zuc2usr_tready;
-  wire [511:0] 			       zuc2usr_tdata;
-  wire [63:0] 			       zuc2usr_tkeep;
-  wire 				       zuc2usr_tlast;
-  wire [71:0] 			       zuc2usr_tuser;
+  wire 				       usr2afu_tvalid;
+  wire 				       usr2afu_tready;
+  wire [511:0] 			       usr2afu_tdata;
+  wire [63:0] 			       usr2afu_tkeep;
+  wire 				       usr2afu_tlast;
+  wire [71:0] 			       usr2afu_tuser;
+  wire 				       afu2usr_tvalid;
+  wire 				       afu2usr_tready;
+  wire [511:0] 			       afu2usr_tdata;
+  wire [63:0] 			       afu2usr_tkeep;
+  wire 				       afu2usr_tlast;
+  wire [71:0] 			       afu2usr_tuser;
 
   // ==========================================================================
   // hmac_afu clock & reset:
@@ -385,16 +385,16 @@ module hmac_top
   // hmac_afu clock
   // 1. Using clocking wizard to generate the following clock generator
   //
-  // zuc_afu reset
-  // 1. zuc_clk_locked is asserted TBD clocks after zuc_clk started toggling,
-  // 2. zuc_reset is asserted during this period 
-  localparam ZUC_RESET_DURATION = 32;
-  wire 				       zuc_clk;
-  wire 				       zuc_clk_locked;
-  reg 				       zuc_reset;
-  reg [7:0] 			       zuc_reset_timer;
+  // afu reset
+  // 1. afu_clk_locked is asserted TBD clocks after afu_clk started toggling,
+  // 2. afu_reset is asserted during this period 
+  localparam AFU_RESET_DURATION = 32;
+  wire 				       afu_clk;
+  wire 				       afu_clk_locked;
+  reg 				       afu_reset;
+  reg [7:0] 			       afu_reset_timer;
 
-  // zuc clk modules options:
+  // AFU clk modules options:
   // clk_125mhz
   // clk_166mhz
   // clk_183mhz
@@ -402,53 +402,50 @@ module hmac_top
   // clk_220mhz
   // clk_222mhz
   // clk_250mhz
-  clk_200mhz zuc_clk_inst 
+  clk_200mhz afu_clk_inst 
     (
      .clk_in1(pcie_user_clk),     // Input 250 Mhz clk
      .reset(pcie_user_reset),     // input reset
-     .locked(zuc_clk_locked),     // output
-     .clk_out1(zuc_clk)           // output zuc clk
+     .locked(afu_clk_locked),     // output
+     .clk_out1(afu_clk)           // output afu clk
      );
   
-  always @(posedge (zuc_clk || zuc_clk_locked)) begin
-    if (zuc_clk_locked && ~zuc_clk)
-      // This block is entered only once, after zuc_clk_locked is asserted.
-      // zuc_clk_locked is the first to rise (while the clock still flat), since the clock module is configured with "Safe Clock Startup"
+  always @(posedge (afu_clk || afu_clk_locked)) begin
+    if (afu_clk_locked && ~afu_clk)
+      // This block is entered only once, after afu_clk_locked is asserted.
+      // afu_clk_locked is the first to rise (while the clock still flat), since the clock module is configured with "Safe Clock Startup"
       begin
-	zuc_reset_timer <= 8'h00;
-	zuc_reset <= 1'b1;
+	afu_reset_timer <= 8'h00;
+	afu_reset <= 1'b1;
       end
 
-    // The remaining blocks are entered on zuc_clk rise
-    else if (zuc_reset_timer < ZUC_RESET_DURATION)
-      zuc_reset_timer <= zuc_reset_timer + 8'h01;
+    // The remaining blocks are entered on afu_clk rise
+    else if (afu_reset_timer < AFU_RESET_DURATION)
+      afu_reset_timer <= afu_reset_timer + 8'h01;
     else
-      zuc_reset <= 1'b0;
+      afu_reset <= 1'b0;
   end
 
   
   wire soft_reset;
-  // ==========================================================================
-  // zuc_afu:
-  // ==========================================================================
   hmac_afu hmac_afu(
-		  .clk(zuc_clk),
-		  .reset(zuc_reset),
+		  .clk(afu_clk),
+		  .reset(afu_reset),
 		  .afu_soft_reset(soft_reset),
 		  
-		  .pci2sbu_axi4stream_vld(usr2zuc_tvalid),
-		  .pci2sbu_axi4stream_rdy(usr2zuc_tready),
-		  .pci2sbu_axi4stream_tdata(usr2zuc_tdata),
-		  .pci2sbu_axi4stream_tkeep(usr2zuc_tkeep),
-		  .pci2sbu_axi4stream_tlast(usr2zuc_tlast),
-		  .pci2sbu_axi4stream_tuser(usr2zuc_tuser),
+		  .pci2sbu_axi4stream_vld(usr2afu_tvalid),
+		  .pci2sbu_axi4stream_rdy(usr2afu_tready),
+		  .pci2sbu_axi4stream_tdata(usr2afu_tdata),
+		  .pci2sbu_axi4stream_tkeep(usr2afu_tkeep),
+		  .pci2sbu_axi4stream_tlast(usr2afu_tlast),
+		  .pci2sbu_axi4stream_tuser(usr2afu_tuser),
 		  
-		  .sbu2pci_axi4stream_vld(zuc2usr_tvalid),
-		  .sbu2pci_axi4stream_rdy(zuc2usr_tready),
-		  .sbu2pci_axi4stream_tdata(zuc2usr_tdata),
-		  .sbu2pci_axi4stream_tkeep(zuc2usr_tkeep),
-		  .sbu2pci_axi4stream_tlast(zuc2usr_tlast),
-		  .sbu2pci_axi4stream_tuser(zuc2usr_tuser),
+		  .sbu2pci_axi4stream_vld(afu2usr_tvalid),
+		  .sbu2pci_axi4stream_rdy(afu2usr_tready),
+		  .sbu2pci_axi4stream_tdata(afu2usr_tdata),
+		  .sbu2pci_axi4stream_tkeep(afu2usr_tkeep),
+		  .sbu2pci_axi4stream_tlast(afu2usr_tlast),
+		  .sbu2pci_axi4stream_tuser(afu2usr_tuser),
 
     `ifdef AXI4LITE_EN
 		  .axilite_aw_vld(afu_axilite_aw_vld),
@@ -482,53 +479,51 @@ module hmac_top
 		  );
 
   wire [9:0] fld2usr_wr_data_count; // For simulation purposes. Will be optimized out at synthesis
-  wire [9:0] usr2zuc_rd_data_count; // For simulation purposes. Will be optimized out at synthesis
-  wire [9:0] zuc2usr_wr_data_count; // For simulation purposes. Will be optimized out at synthesis
+  wire [9:0] usr2afu_rd_data_count; // For simulation purposes. Will be optimized out at synthesis
+  wire [9:0] afu2usr_wr_data_count; // For simulation purposes. Will be optimized out at synthesis
   wire [9:0] usr2fld_rd_data_count; // For simulation purposes. Will be optimized out at synthesis
   wire 	     unconnected_fld2usr_wr_rst_busy;
-  wire 	     unconnected_usr2zuc_rd_rst_busy;
-  wire 	     unconnected_zuc2usr_wr_rst_busy;
+  wire 	     unconnected_usr2afu_rd_rst_busy;
+  wire 	     unconnected_afu2usr_wr_rst_busy;
   wire 	     unconnected_usr2fld_rd_rst_busy;
   
 
-  // Dual clock axi4-stream BRAM fifos, to synch between the pci and zuc cloc kdomains(250Mhz pcie stream and 200/222 Mhz)
+  // Dual clock axi4-stream BRAM fifos, to synch between the pci and afu clock domains(250Mhz pcie stream and 200/222 Mhz)
   axis_512x649_fifo_dual_clk
     pcie2user_clksync_fifo (
 			    .wr_rst_busy(unconnected_fld2usr_wr_rst_busy),    // Available only for UltraScale device built-in FIFOS
-			    .rd_rst_busy(unconnected_usr2zuc_rd_rst_busy),    // Available only for UltraScale device built-in FIFOS
+			    .rd_rst_busy(unconnected_usr2afu_rd_rst_busy),    // Available only for UltraScale device built-in FIFOS
 			    .s_aclk(pcie_user_clk),                           // input wire s_aclk
-//			    .s_aresetn(~(zuc_reset || soft_reset)),           // input wire s_aresetn
-			    .s_aresetn(~(zuc_reset)),                         // input wire s_aresetn
+			    .s_aresetn(~(afu_reset)),                         // input wire s_aresetn
 			    .s_axis_tvalid(fld2usr_dm_p0_tvalid),             // input wire s_axis_tvalid
 			    .s_axis_tready(fld2usr_dm_p0_tready),             // output wire s_axis_tready
 			    .s_axis_tdata(fld2usr_dm_p0_tdata),               // input wire [511 : 0] s_axis_tdata
 			    .s_axis_tkeep(fld2usr_dm_p0_tkeep),               // input wire [63 : 0] s_axis_tkeep
 			    .s_axis_tlast(fld2usr_dm_p0_tlast),               // input wire s_axis_tlast
 			    .s_axis_tuser(fld2usr_dm_p0_tuser_q0),            // input wire [71 : 0] s_axis_tuser
-			    .m_aclk(zuc_clk),                                 // input wire m_aclk
-			    .m_axis_tvalid(usr2zuc_tvalid),                   // output wire m_axis_tvalid
-			    .m_axis_tready(usr2zuc_tready),                   // input wire m_axis_tready
-			    .m_axis_tdata(usr2zuc_tdata),                     // output wire [511 : 0] m_axis_tdata
-			    .m_axis_tkeep(usr2zuc_tkeep),                     // output wire [63 : 0] m_axis_tkeep
-			    .m_axis_tlast(usr2zuc_tlast),                     // output wire m_axis_tlast
-			    .m_axis_tuser(usr2zuc_tuser),                      // output wire [71 : 0] m_axis_tuser
+			    .m_aclk(afu_clk),                                 // input wire m_aclk
+			    .m_axis_tvalid(usr2afu_tvalid),                   // output wire m_axis_tvalid
+			    .m_axis_tready(usr2afu_tready),                   // input wire m_axis_tready
+			    .m_axis_tdata(usr2afu_tdata),                     // output wire [511 : 0] m_axis_tdata
+			    .m_axis_tkeep(usr2afu_tkeep),                     // output wire [63 : 0] m_axis_tkeep
+			    .m_axis_tlast(usr2afu_tlast),                     // output wire m_axis_tlast
+			    .m_axis_tuser(usr2afu_tuser),                      // output wire [71 : 0] m_axis_tuser
 			    .axis_wr_data_count(fld2usr_wr_data_count),       // output wire [9 : 0] axis_wr_data_count
-			    .axis_rd_data_count(usr2zuc_rd_data_count)        // output wire [9 : 0] axis_rd_data_count
+			    .axis_rd_data_count(usr2afu_rd_data_count)        // output wire [9 : 0] axis_rd_data_count
 			    );
   
   axis_512x649_fifo_dual_clk
     user2pcie_clksync_fifo (
-			    .wr_rst_busy(unconnected_zuc2usr_wr_rst_busy),    // Available only for UltraScale device built-in FIFOS
+			    .wr_rst_busy(unconnected_afu2usr_wr_rst_busy),    // Available only for UltraScale device built-in FIFOS
 			    .rd_rst_busy(unconnected_usr2fld_rd_rst_busy),    // Available only for UltraScale device built-in FIFOS
-			    .s_aclk(zuc_clk),                                 // input wire s_aclk
-//			    .s_aresetn(~(zuc_reset || soft_reset)),           // input wire s_aresetn
-			    .s_aresetn(~(zuc_reset)),                         // input wire s_aresetn
-			    .s_axis_tvalid(zuc2usr_tvalid),                   // input wire s_axis_tvalid
-			    .s_axis_tready(zuc2usr_tready),                   // output wire s_axis_tready
-			    .s_axis_tdata(zuc2usr_tdata),                     // input wire [511 : 0] s_axis_tdata
-			    .s_axis_tkeep(zuc2usr_tkeep),                     // input wire [63 : 0] s_axis_tkeep
-			    .s_axis_tlast(zuc2usr_tlast),                     // input wire s_axis_tlast
-			    .s_axis_tuser(zuc2usr_tuser),                     // input wire [71 : 0] s_axis_tuser
+			    .s_aclk(afu_clk),                                 // input wire s_aclk
+			    .s_aresetn(~(afu_reset)),                         // input wire s_aresetn
+			    .s_axis_tvalid(afu2usr_tvalid),                   // input wire s_axis_tvalid
+			    .s_axis_tready(afu2usr_tready),                   // output wire s_axis_tready
+			    .s_axis_tdata(afu2usr_tdata),                     // input wire [511 : 0] s_axis_tdata
+			    .s_axis_tkeep(afu2usr_tkeep),                     // input wire [63 : 0] s_axis_tkeep
+			    .s_axis_tlast(afu2usr_tlast),                     // input wire s_axis_tlast
+			    .s_axis_tuser(afu2usr_tuser),                     // input wire [71 : 0] s_axis_tuser
 			    .m_aclk(pcie_user_clk),                           // input wire m_aclk
 			    .m_axis_tvalid(usr2fld_dm_p0_tvalid),             // output wire m_axis_tvalid
 			    .m_axis_tready(usr2fld_dm_p0_tready),             // input wire m_axis_tready
@@ -536,7 +531,7 @@ module hmac_top
 			    .m_axis_tkeep(usr2fld_dm_p0_tkeep),               // output wire [63 : 0] m_axis_tkeep
 			    .m_axis_tlast(usr2fld_dm_p0_tlast),               // output wire m_axis_tlast
 			    .m_axis_tuser(usr2fld_dm_p0_tuser),                // output wire [71 : 0] m_axis_tuser
-			    .axis_wr_data_count(zuc2usr_wr_data_count),       // output wire [9 : 0] axis_wr_data_count
+			    .axis_wr_data_count(afu2usr_wr_data_count),       // output wire [9 : 0] axis_wr_data_count
 			    .axis_rd_data_count(usr2fld_rd_data_count)        // output wire [9 : 0] axis_rd_data_count
 			    );
   
@@ -566,25 +561,6 @@ module hmac_top
     (
      .s_axi_aclk(pcie_user_clk),            // input wire s_axi_aclk
      .s_axi_aresetn(~pcie_user_reset),      // input wire s_axi_aresetn
-     //	 .s_axi_awaddr(fld_axilite_aw_addr),    // input wire [63 : 0] s_axi_awaddr
-     //	 .s_axi_awprot(unconnected_axilite_aw_prot),    // input wire [2 : 0] s_axi_awprot
-     //	 .s_axi_awvalid(fld_axilite_aw_vld),  // input wire s_axi_awvalid
-     //	 .s_axi_awready(fld_axilite_aw_rdy),  // output wire s_axi_awready
-     //	 .s_axi_wdata(fld_axilite_w_data),      // input wire [31 : 0] s_axi_wdata
-     //	 .s_axi_wstrb(unconnected_axilite_w_strobe),      // input wire [3 : 0] s_axi_wstrb
-     //	 .s_axi_wvalid(fld_axilite_w_vld),    // input wire s_axi_wvalid
-     //	 .s_axi_wready(fld_axilite_w_rdy),    // output wire s_axi_wready
-     //	 .s_axi_bresp(fld_axilite_b_resp),      // output wire [1 : 0] s_axi_bresp
-     //	 .s_axi_bvalid(fld_axilite_b_vld),    // output wire s_axi_bvalid
-     //	 .s_axi_bready(fld_axilite_b_rdy),    // input wire s_axi_bready
-     //	 .s_axi_araddr(fld_axilite_ar_addr),    // input wire [63 : 0] s_axi_araddr
-     //	 .s_axi_arprot(unconnected_axilite_ar_prot),    // input wire [2 : 0] s_axi_arprot
-     //	 .s_axi_arvalid(fld_axilite_ar_vld),  // input wire s_axi_arvalid
-     //	 .s_axi_arready(fld_axilite_ar_rdy),  // output wire s_axi_arready
-     //	 .s_axi_rdata(fld_axilite_r_data),      // output wire [31 : 0] s_axi_rdata
-     //	 .s_axi_rresp(unconnected_axilite_r_resp),      // output wire [1 : 0] s_axi_rresp
-     //	 .s_axi_rvalid(fld_axilite_r_vld),    // output wire s_axi_rvalid
-     //	 .s_axi_rready(fld_axilite_r_rdy),    // input wire s_axi_rready
      .s_axi_awaddr(axi4liteM0_awaddr),    // input wire [31 : 0] s_axi_awaddr
      .s_axi_awprot(axi4liteM0_awprot),    // input wire [2 : 0] s_axi_awprot
      .s_axi_awvalid(axi4liteM0_awvalid),  // input wire s_axi_awvalid
@@ -605,8 +581,8 @@ module hmac_top
      .s_axi_rvalid(axi4liteM0_rvalid),    // output wire s_axi_rvalid
      .s_axi_rready(axi4liteM0_rready),    // input wire s_axi_rready
      
-     .m_axi_aclk(zuc_clk),                // input wire m_axi_aclk
-     .m_axi_aresetn(~zuc_reset),          // input wire m_axi_aresetn
+     .m_axi_aclk(afu_clk),                // input wire m_axi_aclk
+     .m_axi_aresetn(~afu_reset),          // input wire m_axi_aresetn
      .m_axi_awaddr(afu_axilite_aw_addr),    // output wire [63 : 0] m_axi_awaddr
      .m_axi_awprot(afu_axilite_aw_prot),    // output wire [2 : 0] m_axi_awprot
      .m_axi_awvalid(afu_axilite_aw_vld),  // output wire m_axi_awvalid
@@ -630,7 +606,7 @@ module hmac_top
   
   // AXI4Lite crossbar
   // Connecting the host to two slaves:
-  // M0: zuc_afu axi4lite
+  // M0: afu axi4lite
   // M1 pci2sbu & sbu2pci sampling fifos
   //
   wire 	      axi4liteM1_awready, axi4liteM1_wready, axi4liteM1_bvalid;
@@ -638,7 +614,6 @@ module hmac_top
   wire [31:0] axi4liteM1_rdata;
   wire [1:0]  axi4liteM1_rresp;
   wire [1:0]  axi4liteM1_bresp;
-//  reg [31:0]  axi4liteM1_araddrQ;
   
   // M1 is read_only. The write part is disabled
   assign axi4liteM1_awready = 1'b0;
@@ -651,26 +626,6 @@ module hmac_top
      .aclk(pcie_user_clk),                    // input wire aclk
      .aresetn(~pcie_user_reset),              // input wire aresetn
      
-// in zuc_top.v (fld integration), the fld outputs only lower 20 address bits
-     //     .s_axi_awaddr({12'h000, mlx2sbu_axi4lite_aw_addr[19:0]}),    // input wire [31 : 0] s_axi_awaddr
-     //     .s_axi_awprot(mlx2sbu_axi4lite_aw_prot),    // input wire [2 : 0] s_axi_awprot
-     //     .s_axi_awvalid(mlx2sbu_axi4lite_aw_vld),  // input wire [0 : 0] s_axi_awvalid
-     //     .s_axi_awready(mlx2sbu_axi4lite_aw_rdy),  // output wire [0 : 0] s_axi_awready
-     //     .s_axi_wdata(mlx2sbu_axi4lite_w_data),      // input wire [31 : 0] s_axi_wdata
-     //     .s_axi_wstrb(mlx2sbu_axi4lite_w_strobe),      // input wire [3 : 0] s_axi_wstrb
-     //     .s_axi_wvalid(mlx2sbu_axi4lite_w_vld),    // input wire [0 : 0] s_axi_wvalid
-     //     .s_axi_wready(mlx2sbu_axi4lite_w_rdy),    // output wire [0 : 0] s_axi_wready
-     //     .s_axi_bresp(mlx2sbu_axi4lite_b_resp),      // output wire [1 : 0] s_axi_bresp
-     //     .s_axi_bvalid(mlx2sbu_axi4lite_b_vld),    // output wire [0 : 0] s_axi_bvalid
-     //     .s_axi_bready(mlx2sbu_axi4lite_b_rdy),    // input wire [0 : 0] s_axi_bready
-     //     .s_axi_araddr({12'h000, mlx2sbu_axi4lite_ar_addr[19:0]}),    // input wire [31 : 0] s_axi_araddr
-     //     .s_axi_arprot(mlx2sbu_axi4lite_ar_prot),    // input wire [2 : 0] s_axi_arprot
-     //     .s_axi_arvalid(mlx2sbu_axi4lite_ar_vld),  // input wire [0 : 0] s_axi_arvalid
-     //     .s_axi_arready(mlx2sbu_axi4lite_ar_rdy),  // output wire [0 : 0] s_axi_arready
-     //     .s_axi_rdata(mlx2sbu_axi4lite_r_data),      // output wire [31 : 0] s_axi_rdata
-     //     .s_axi_rresp(mlx2sbu_axi4lite_r_resp),      // output wire [1 : 0] s_axi_rresp
-     //     .s_axi_rvalid(mlx2sbu_axi4lite_r_vld),    // output wire [0 : 0] s_axi_rvalid
-     //     .s_axi_rready(mlx2sbu_axi4lite_r_rdy),    // input wire [0 : 0] s_axi_rready
      .s_axi_awaddr({12'h000, fld_axilite_aw_addr[19:0]}),    // input wire [31 : 0] s_axi_awaddr
      .s_axi_awprot(unconnected_axilite_aw_prot),    // input wire [2 : 0] s_axi_awprot
      .s_axi_awvalid(fld_axilite_aw_vld),  // input wire s_axi_awvalid
@@ -719,10 +674,10 @@ module hmac_top
   // These fifos are located at the FLD clk domain
   // The fifos are read via axi4lite
   //
-  // Sampling enable window and buffers reset are generated inside the zuc_afu, then synchronized to mlx2sbu_clk
+  // Sampling enable window and buffers reset are generated inside the afu, then synchronized to mlx2sbu_clk
   // Sampling continues as long as the enable window is set
   
-  // Sampling fifos control: enable & reset originate in zuc_afu, and should be synched to FLD clock
+  // Sampling fifos control: enable & reset originate in the afu, and should be synched to FLD clock
   // For synch purpose, a dual clock fifo is used, with fifo wren & rden continuously active
   // Assuming the actual FLD to AFU clock freq ratio is always greater than 1 (i.e: 250 to 200),
   // then it is guaranteed that the read rate in the following synch fifo will always be greater than the write rate.
@@ -818,8 +773,8 @@ module hmac_top
   end
 
 
-  always @(posedge zuc_clk) begin
-    if (zuc_reset)
+  always @(posedge afu_clk) begin
+    if (afu_reset)
       begin
 	sampling_fifos_ctrl_wren <= 1'b1;
 	sampling_fifos_ctrl_rden <= 1'b1;
@@ -828,8 +783,8 @@ module hmac_top
   
 fifo_16x4b_dual_clock sampling_fifos_ctrl
   (
-   .rst(zuc_reset),
-   .wr_clk(zuc_clk),
+   .rst(afu_reset),
+   .wr_clk(afu_clk),
    .rd_clk(pcie_user_clk),
    .din({1'b0, fld_pci_sample_enable, fld_pci_sample_soft_reset}),  // input wire [3 : 0]
    .wr_en(sampling_fifos_ctrl_wren),                        // input wire wr_en
@@ -842,7 +797,7 @@ fifo_16x4b_dual_clock sampling_fifos_ctrl
 
 
 `ifdef FLD_PCI2SBU_SAMPLE_EN
-// ZUC 512b axi4stream sampling buffers
+// 512b axi4stream sampling buffers
 zuc_sample_buf fld_pci2sbu_sample_buffer
   (
    .sample_clk(pcie_user_clk),
@@ -899,375 +854,4 @@ zuc_sample_buf fld_sbu2pci_sample_buffer
   assign sbu2pci_sample_arready = 1'b1;
 `endif  
 
-
-/*
-  reg  [515:0] pci2sbu_data_fifo_din;
-  wire [515:0] pci2sbu_data_fifo_dout;
-  wire 	       pci2sbu_data_fifo_valid;
-  reg 	       pci2sbu_data_fifo_wren, pci2sbu_data_fifo_rden;
-  wire 	       pci2sbu_data_fifo_almost_full;
-  wire 	       unconnected1_almost_full;
-  reg  [515:0] sbu2pci_data_fifo_din;
-  wire [515:0] sbu2pci_data_fifo_dout;
-  wire 	       sbu2pci_data_fifo_valid;
-  reg 	       sbu2pci_data_fifo_wren, sbu2pci_data_fifo_rden;
-  wire 	       sbu2pci_data_fifo_almost_full;
-  wire 	       unconnected2_almost_full;
-  wire [13:0]  sbu2pci_data_fifo_data_count;
-  wire [13:0]  pci2sbu_data_fifo_data_count;
-  reg 	       pci2sbu_axi4stream_first, sbu2pci_axi4stream_first;
-
-  wire 	       pci2sbu_sample_enable;
-  wire 	       sbu2pci_sample_enable;
-  wire 	       pci_sample_fifos_reset;
-  wire 	       unconnected1;
-  wire 	       unconnected_valid, unconnected_full, unconnected_empty;
-  reg 	       sampling_fifos_ctrl_wren;
-  reg 	       sampling_fifos_ctrl_rden;
-
-// Sampling fifos control: enable & reset originate in zuc_afu, and should be synched to FLD clock
-// For synch purpose, a dual clock fifo is used, with fifo wren & rden continuously active
-
-
-  // Assuming the actual FLD to afu clock freq ratio is always greater than 1 (i.e: 250 to 200),
-  // then it is guaranteed that the read rate in the following synch fifo will always be greater than the write rate.
-  // Keeping this ratio is important to avoid pci_sample_fifos_reset signal too long
-  always @(posedge zuc_clk) begin
-    if (zuc_reset)
-      begin
-	sampling_fifos_ctrl_wren <= 1'b1;
-	sampling_fifos_ctrl_rden <= 1'b1;
-      end
-    //    else
-    //      sampling_fifos_ctrl_wren <= ~sampling_fifos_ctrl_wren;
-  end
-  
-fifo_16x4b_dual_clock sampling_fifos_ctrl
-  (
-   .rst(zuc_reset),        // input wire rst
-   .wr_clk(zuc_clk),  // input wire wr_clk
-   .rd_clk(pcie_user_clk),  // input wire rd_clk
-   .din({1'b0, pci_sample_enable, pci_sample_soft_reset}),        // input wire [3 : 0] din
-   .wr_en(sampling_fifos_ctrl_wren),    // input wire wr_en
-   .rd_en(sampling_fifos_ctrl_rden),    // input wire rd_en
-   .dout({unconnected1, sbu2pci_sample_enable, pci2sbu_sample_enable, pci_sample_fifos_reset}),      // output wire [3 : 0] dout
-   .full(unconnected_full),      // output wire full
-   .empty(unconnected_empty),    // output wire empty
-   .valid(unconnected_valid)    // output wire valid
-   );
-  
-
-  fifo_8Kx516b pci2sbu_data_fifo 
-    (
-     .clk(pcie_user_clk),                              // input wire clk
-     .srst(pcie_user_reset || pci_sample_fifos_reset), // input wire srst
-     .din(pci2sbu_data_fifo_din),                    // input wire [515 : 0] din
-     .wr_en(pci2sbu_data_fifo_wren),                 // input wire wr_en
-     .rd_en(pci2sbu_data_fifo_rden),                 // input wire rd_en
-     .dout(pci2sbu_data_fifo_dout),                  // output wire [515 : 0] dout
-     .full(pci2sbu_data_fifo_full),                  // output wire full
-     .almost_full(unconnected1_almost_full),         // output wire almost_full
-     .empty(pci2sbu_data_fifo_empty),                // output wire empty
-     .almost_empty(pci2sbu_data_fifo_almost_empty),  // output wire almost_empty
-     .valid(pci2sbu_data_fifo_valid),                // output wire valid
-     .data_count(pci2sbu_data_fifo_data_count),      // output wire [13 : 0] data_count
-     .wr_rst_busy(pci2sbu_data_fifo_wr_rst_busy),    // output wire wr_rst_busy
-     .rd_rst_busy(pci2sbu_data_fifo_rd_rst_busy)     // output wire rd_rst_busy
-     );
-  
-  fifo_8Kx516b sbu2pci_data_fifo 
-    (
-     .clk(pcie_user_clk),                              // input wire clk
-     .srst(pcie_user_reset || pci_sample_fifos_reset), // input wire srst
-     .din(sbu2pci_data_fifo_din),                    // input wire [515 : 0] din
-     .wr_en(sbu2pci_data_fifo_wren),                 // input wire wr_en
-     .rd_en(sbu2pci_data_fifo_rden),                 // input wire rd_en
-     .dout(sbu2pci_data_fifo_dout),                  // output wire [515 : 0] dout
-     .full(sbu2pci_data_fifo_full),                  // output wire full
-     .almost_full(unconnected2_almost_full),         // output wire almost_full
-     .empty(sbu2pci_data_fifo_empty),                // output wire empty
-     .almost_empty(sbu2pci_data_fifo_almost_empty),  // output wire almost_empty
-     .valid(sbu2pci_data_fifo_valid),                // output wire valid
-     .data_count(sbu2pci_data_fifo_data_count),      // output wire [13 : 0] data_count
-     .wr_rst_busy(sbu2pci_data_fifo_wr_rst_busy),    // output wire wr_rst_busy
-     .rd_rst_busy(sbu2pci_data_fifo_rd_rst_busy)     // output wire rd_rst_busy
-     );
-  
-// pci2sbu &  sbu2pci data_fifos control
-//
-// AXI4Lite address
-//   'h010000.. 'h010040 - pci2sbu_data_fifo_dout // {data_count, dout[515:0]} - 17 DW 
-//   'h010100.. 'h01013c - sbu2pci_data_fifo_dout 
-//Note: The 'h010000 address base is the assigned base address to port M1 inside the axi4lite crossbar
-  
-// Select the specific DW from fifo out:
-  reg [31:0]   pci2sbu_axi4lite_rdata;
-  reg [31:0]   sbu2pci_axi4lite_rdata;
-
-  always @(*) begin
-    case (axi4liteM1_araddr[6:2])
-      16:
-	begin
-	  pci2sbu_axi4lite_rdata <= {10'h000, pci2sbu_data_fifo_data_count, 4'h0, pci2sbu_data_fifo_dout[515:512]};
-	  sbu2pci_axi4lite_rdata <= {10'h000, sbu2pci_data_fifo_data_count, 4'h0, sbu2pci_data_fifo_dout[515:512]};
-	end
-      
-      15:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[511:480];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[511:480];
-	end
-      
-      14:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[479:448];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[479:448];
-	end
-      
-      13:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[447:416];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[447:416];
-	end
-      
-      12:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[415:384];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[415:384];
-	end
-      
-      11:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[383:352];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[383:352];
-	end
-      
-      10:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[351:320];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[351:320];
-	end
-      
-      9:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[319:288];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[319:288];
-	end
-      
-      8:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[287:256];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[287:256];
-	end
-      
-      7:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[255:224];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[255:224];
-	end
-      
-      6:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[223:192];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[223:192];
-	end
-      
-      5:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[191:160];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[191:160];
-	end
-      
-      4:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[159:128];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[159:128];
-	end
-      
-      3:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[127:96];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[127:96];
-	end
-      
-      2:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[95:64];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[95:64];
-	end
-      
-      1:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[63:32];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[63:32];
-	end
-      
-      0:
-	begin
-	  pci2sbu_axi4lite_rdata <= pci2sbu_data_fifo_dout[31:0];
-	  sbu2pci_axi4lite_rdata <= sbu2pci_data_fifo_dout[31:0];
-	end
-      
-      default:
-	begin
-	end
-    endcase
-  end
-
-  reg [1:0]  axi_state;
-  reg 	     pci2sbu_data_fifo_rden;
-  reg 	     pci2sbu_data_fifo_wren;
-  reg 	     sbu2pci_data_fifo_rden;
-  reg 	     sbu2pci_data_fifo_wren;
-  reg 	     axi4liteM1_arready;
-  reg 	     axi4liteM1_rvalid;
-  reg [31:0] axi4lite_fifos_rdata;
-  reg [3:0]  pci2sbu_data_fifo_drop_count;
-  reg [3:0]  sbu2pci_data_fifo_drop_count;
-  wire 	     pci2sbu_fifo_lowest_dw_is_read, sbu2pci_fifo_lowest_dw_is_read;
-  
-  assign axi4liteM1_rresp = 2'b00;
-  assign axi4liteM1_rdata = axi4lite_fifos_rdata;
-  assign pci2sbu_fifo_lowest_dw_is_read = axi4liteM1_rvalid && axi4liteM1_rready && (axi4liteM1_araddrQ[19:0] == 'h10000); // pci2sbu_fifo_dout lowest DW 
-  assign sbu2pci_fifo_lowest_dw_is_read = axi4liteM1_rvalid && axi4liteM1_rready && (axi4liteM1_araddrQ[19:0] == 'h10100); // sbu2pci_fifo_dout lowest DW 
-  
-  // Wrap-around sampling scheme:
-  // As the fifo capacity crossing a predefined threshold, 8 oldest lines are dropped, to make room for newer samples.
-  assign pci2sbu_data_fifo_almost_full = ({2'b00, pci2sbu_data_fifo_data_count} >= PCI_SAMPLE_FIFO_WATERMARK) ? 1'b1 : 1'b0;  
-  assign sbu2pci_data_fifo_almost_full = ({2'b00, sbu2pci_data_fifo_data_count} >= PCI_SAMPLE_FIFO_WATERMARK) ? 1'b1 : 1'b0;
-  
-  always @(posedge pcie_user_clk) begin
-    if (pcie_user_reset)
-      begin
-	pci2sbu_data_fifo_rden <= 1'b0;
-	pci2sbu_data_fifo_wren <= 1'b0;
-	sbu2pci_data_fifo_rden <= 1'b0;
-	sbu2pci_data_fifo_wren <= 1'b0;
-	axi4liteM1_arready <= 1'b1;
-	axi4liteM1_rvalid <= 1'b0;
-	pci2sbu_axi4stream_first <= 1'b1;
-	sbu2pci_axi4stream_first <= 1'b1;
-	pci2sbu_data_fifo_drop_count <= 4'h0;
-	sbu2pci_data_fifo_drop_count <= 4'h0;
-	axi_state <= 2'b00;
-      end
-    
-    else
-      begin
-	if (axi_state == 2'b00)
-	  // axi4lite read address phase
-	  begin
-	    if (axi4liteM1_arvalid && axi4liteM1_arready)
-	      begin
-		// Sampling a valid araddr, for use during the corresonsid data cycle
-		axi4liteM1_araddrQ <= axi4liteM1_araddr;
-		
-		axi4liteM1_arready <= 1'b0;
-		axi4liteM1_rvalid <= 1'b1;
-		axi_state <= 2'b01; // goto rdata
-		// Reading an empty fifo returns 'hdeadf00d
-		
-		if (axi4liteM1_araddr[19:8] == 12'h100) // pci2sbu_fifo address base
-		  // pci2sbu fifo read addressing:
-		  // a 512b line is read as 16 x 32b DW,
-		  // adrs     read_dw
-		  // 'h10000   fifo_dout[31:0]
-		  // 'h10004   fifo_dout[63:32]
-		  // ...
-		  // 'h1003c   fifo_dout[511:480] // Current fifo line id dropped, after reading this DW
-		  // 'h10040   {fifo_data_count, fifo_dout[515:511]}
-		  begin 
-		    axi4lite_fifos_rdata <= pci2sbu_data_fifo_valid ? pci2sbu_axi4lite_rdata : 32'hdeadf00d;
-		  end
-		
-		else if (axi4liteM1_araddr[19:8] == 12'h101) // sbu2pci_fifo address base
-		  begin
-		    // sbu2pci fifo read addressing:
-		    // a 512b line is read as 16 x 32b DW,
-		    // adrs     read_dw
-		    // 'h10100   fifo_dout[31:0]
-		    // 'h10104   fifo_dout[63:32]
-		    // ...
-		    // 'h1003c   fifo_dout[511:480] // Current fifo line id dropped, after reading this DW
-		    // 'h10040   {fifo_data_count, fifo_dout[515:511]}
-		    axi4lite_fifos_rdata <= sbu2pci_data_fifo_valid ? sbu2pci_axi4lite_rdata : 32'hdeadf00d;
-		  end
-	      end
-	  end
-	
-	else if (axi_state == 2'b01)
-	  // axi4lite read data phase
-	  begin
-	    if (axi4liteM1_rvalid && axi4liteM1_rready)
-	      begin
-		axi4liteM1_arready <= 1'b1;
-		axi4liteM1_rvalid <= 1'b0;
-		axi_state <= 2'b00; // goto radrs
-	      end	
-	  end	
-	
-	// The sampling fifo is read (oldest line is dropped) in two cases: 
-	// 1. To implement a wrap_wround sampling window, if the fifo is almost_full, 8 oldest samples are discarded,
-	//    making room for next sample
-	//    almost_full is defined FIFO_SIZE - 8
-	// 2. The lowest DW of a VALID line has been read,
-	if (pci2sbu_data_fifo_almost_full || (pci2sbu_data_fifo_drop_count > 0) || pci2sbu_fifo_lowest_dw_is_read && pci2sbu_data_fifo_valid)
-	  begin
-	    pci2sbu_data_fifo_rden <= 1'b1;
-
-	    if (pci2sbu_data_fifo_almost_full && (pci2sbu_data_fifo_drop_count == 0))
-	      pci2sbu_data_fifo_drop_count <= 4'h7;
-	    else if (pci2sbu_data_fifo_drop_count > 0)
-	      pci2sbu_data_fifo_drop_count <= pci2sbu_data_fifo_drop_count - 4'h1;
-	  end
-	else
-	  pci2sbu_data_fifo_rden <= 1'b0;
-
-
-	if (sbu2pci_data_fifo_almost_full || (sbu2pci_data_fifo_drop_count > 0) || sbu2pci_fifo_lowest_dw_is_read && sbu2pci_data_fifo_valid)
-	  begin
-	    sbu2pci_data_fifo_rden <= 1'b1;
-	    
-	    if (sbu2pci_data_fifo_almost_full && (sbu2pci_data_fifo_drop_count == 0))
-	      sbu2pci_data_fifo_drop_count <= 4'h7;
-	    else if (sbu2pci_data_fifo_drop_count > 0)
-	      sbu2pci_data_fifo_drop_count <= sbu2pci_data_fifo_drop_count - 4'h1;
-	  end
-	else
-	  sbu2pci_data_fifo_rden <= 1'b0;
-	
-	// Sample full axi4stream line into fifo
-	// fifo 'full' is ignored, since the fifo never gets full (see above)
-	if (~pci2sbu_data_fifo_wr_rst_busy && pci2sbu_sample_enable && fld2usr_dm_p0_tvalid && fld2usr_dm_p0_tready)
-	  begin
-	    pci2sbu_data_fifo_din <= {fld2usr_dm_p0_tuser[39], 1'b0, pci2sbu_axi4stream_first, fld2usr_dm_p0_tlast, fld2usr_dm_p0_tdata};
-	    pci2sbu_data_fifo_wren <= 1'b1;
-
-	    // Update start of packet indication, towards next fifo line sampling
-	    if (fld2usr_dm_p0_tlast)
-	      pci2sbu_axi4stream_first <= 1'b1;
-	    else
-	      pci2sbu_axi4stream_first <= 1'b0;
-	  end
-
-	else 
-	  pci2sbu_data_fifo_wren <= 1'b0;
-
-	
-	if (~sbu2pci_data_fifo_wr_rst_busy && sbu2pci_sample_enable && usr2fld_dm_p0_tvalid && usr2fld_dm_p0_tready)
-	  begin
-	    sbu2pci_data_fifo_din <= {2'b00, sbu2pci_axi4stream_first, usr2fld_dm_p0_tlast, usr2fld_dm_p0_tdata};
-	    sbu2pci_data_fifo_wren <= 1'b1;
-
-	    if (usr2fld_dm_p0_tlast)
-	      sbu2pci_axi4stream_first <= 1'b1;
-	    else
-	      sbu2pci_axi4stream_first <= 1'b0;
-	  end
-
-	else 
-	  sbu2pci_data_fifo_wren <= 1'b0;
-      end
-  end
-*/
 endmodule

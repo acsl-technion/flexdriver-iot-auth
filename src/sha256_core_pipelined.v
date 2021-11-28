@@ -363,7 +363,6 @@ module sha256_core_pipelined(
 
       ch = (e_reg & f_reg) ^ ((~e_reg) & g_reg);
 
-//      t1 = h_reg + sum1 + ch + w_data + k_data;
     end // t1_logic
 
 // t1 calculation, using csa
@@ -403,7 +402,6 @@ module sha256_core_pipelined(
 
       t2_maj = (a_reg & b_reg) ^ (a_reg & c_reg) ^ (b_reg & c_reg);
 
-//      t2 = t2_sum0 + t2_maj;
     end // t2_logic
 
 

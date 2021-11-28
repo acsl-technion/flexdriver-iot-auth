@@ -254,10 +254,6 @@ module hmac_afu(
   reg [31:0] 	  afu_sbu2pci_pushbackl;
 
   reg [31:0] 	  afu_scratchpad; // Scratch pad, read/write register, for axi4lite transactions testing
-  reg 		  afu_counter8_read;
-  reg 		  afu_counter8_cleared;
-  reg 		  afu_counter9_read;
-  reg 		  afu_counter9_cleared;
   reg 		  afu_reset;
   reg [7:0] 	  afu_reset_count;
   reg 		  pci_sample_reset;
@@ -269,7 +265,6 @@ module hmac_afu(
   wire 		  input_buffer_sample_enable;
   reg [47:0] 	  timestamp;
   reg [31:0] 	  timestampl;
-  reg [47:0] 	  timestampQ;
 
   // Total counters
   reg [47:0] 	  total_hmac_received_requests_count;
@@ -366,7 +361,6 @@ localparam
 
 
 localparam
-  //  ADDR_AFU_HISTO_CiHjBk = 16'h2ijk; // read only. Channeli (i={0,1,2,..15}), Histogramj (j={0,1,2,3}), Bucketk (k={0,1,2,..9})
   ADDR_AFU_HISTO_BASE     = 20'h02000, // hist tables start address.
   ADDR_AFU_HISTO0_BASE    = 20'h02000, // hist_table 0 start address. 1KB=256x4B address space is assigned to each histo table  
   ADDR_AFU_HISTO1_BASE    = 20'h02400, // hist_table 1 start address
@@ -550,15 +544,10 @@ localparam
 	if (axi_raddr == ADDR_AFU_COUNTER8)
 	  begin
 	    axi_rdata <= afu_counter8[31:0];
-	    // counter8_read indication is used to clear counter8 upon axi4lite read.
-	    // Yet, this capability is enabled only if ctrl3[0] is set.
-	    // If ctrl3[0] is cleared, then counter8 is not affected by the axi4lite read
-//	    afu_counter8_read <= afu_ctrl3[0] ? 1'b1 : 1'b0;
 	  end
 	if (axi_raddr == ADDR_AFU_COUNTER9)
 	  begin
 	    axi_rdata <= afu_counter9[31:0];
-//	    afu_counter9_read <= afu_ctrl3[0] ? 1'b1 : 1'b0;
 	  end
 
 	if (axi_raddr == ADDR_AFU_SCRATCHPAD)
@@ -733,10 +722,6 @@ localparam
 	  axi_rdata <= timestampl;
       end
 
-//    if (afu_counter8_cleared)
-//      afu_counter8_read <= 1'b0;
-//    if (afu_counter9_cleared)
-//      afu_counter9_read <= 1'b0;
   end // always @ (posedge clk)
   
   // axilite write fsm
@@ -933,8 +918,6 @@ localparam
   // Modules fifo_in watermark
   wire [4:0]     module_fifo_in_watermark[NUM_MODULES-1:0];
   wire 		 module_fifo_in_watermark_met[NUM_MODULES-1:0];
-//  wire [4:0]     module_fifo_in_watermark[7:0];
-  //wire 		 module_fifo_in_watermark_met[7:0];
 
   // fifo_in watermark is active only in a round_robin fifo_in arbitration mode (hmac_round_robin_arb) 
   // non-zero watermark while in other fifo_in load_based arbitration mode, actually disrupts the arbitration scheme. 
@@ -1040,8 +1023,6 @@ localparam
 	afu_counter7 <= 32'h00000000;
 	afu_counter8 <= 33'h000000000;
 	afu_counter9 <= 33'h000000000;
-//	afu_counter8_cleared <= 1'b0;
-//	afu_counter9_cleared <= 1'b0;
 	timestamp <= 48'h000000000000;
 	afu_pci2sbu_pushback <= 48'h000000000000;
 	afu_sbu2pci_pushback <= 48'h000000000000;
@@ -1250,22 +1231,6 @@ localparam
   reg [11:0]   chid15_in_message_id;
 
   reg [9:0]   chid_in_message_count[NUM_CHANNELS-1:0];
-//  reg [9:0]   chid0_in_message_count;
-//  reg [9:0]   chid1_in_message_count;
-//  reg [9:0]   chid2_in_message_count;
-//  reg [9:0]   chid3_in_message_count;
-//  reg [9:0]   chid4_in_message_count;
-//  reg [9:0]   chid5_in_message_count;
-//  reg [9:0]   chid6_in_message_count;
-//  reg [9:0]   chid7_in_message_count;
-//  reg [9:0]   chid8_in_message_count;
-//  reg [9:0]   chid9_in_message_count;
-//  reg [9:0]   chid10_in_message_count;
-//  reg [9:0]   chid11_in_message_count;
-//  reg [9:0]   chid12_in_message_count;
-//  reg [9:0]   chid13_in_message_count;
-//  reg [9:0]   chid14_in_message_count;
-//  reg [9:0]   chid15_in_message_count;
 
   reg [31:0]   total_chid0_in_message_count;
   reg [31:0]   total_chid1_in_message_count;
@@ -1414,7 +1379,6 @@ localparam
   reg 	       fifo_in_readyD;
   reg 	       fifo_in_readyQ;
   reg 	       input_buffer_write;
-//  reg 	       input_buffer_eth_write;
   reg 	       input_buffer_meta_write;
   reg 	       input_buffer_wren;
   reg 	       write_eth_header;
@@ -2023,112 +1987,96 @@ localparam
       // message_count is a common register to both write & read operations, so no need for an in/out identifier
       // Unsigned count, max 256 messages/channel: 512 (=8K/16) entries/channel, minimum 1024b/message
       // Both input_buffer write & read state machines affect this count register
-//      chid0_in_message_count <= 0;
       chid1_out_head <= {4'h1, 9'h000};
       chid1_in_tail <= {4'h1, 9'h000};
       chid1_in_message_start <= {4'h1, 9'h000};
       chid1_in_som <= 1'b1;
       chid1_in_message_id <= 12'h000;
       chid1_in_message_lines <= 10'h000;
-//      chid1_in_message_count <= 0;
       chid2_out_head <= {4'h2, 9'b0};
       chid2_in_tail <= {4'h2, 9'b0};
       chid2_in_message_start <= {4'h2, 9'b0};
       chid2_in_som <= 1'b1;
       chid2_in_message_id <= 12'h000;
       chid2_in_message_lines <= 10'h000;
-//      chid2_in_message_count <= 0;
       chid3_out_head <= {4'h3, 9'b0};
       chid3_in_tail <= {4'h3, 9'b0};
       chid3_in_message_start <= {4'h3, 9'b0};
       chid3_in_som <= 1'b1;
       chid3_in_message_id <= 12'h000;
       chid3_in_message_lines <= 10'h000;
-//      chid3_in_message_count <= 0;
       chid4_out_head <= {4'h4, 9'b0};
       chid4_in_tail <= {4'h4, 9'b0};
       chid4_in_message_start <= {4'h4, 9'b0};
       chid4_in_som <= 1'b1;
       chid4_in_message_id <= 12'h000;
       chid4_in_message_lines <= 10'h000;
-//      chid4_in_message_count <= 0;
       chid5_out_head <= {4'h5, 9'b0};
       chid5_in_tail <= {4'h5, 9'b0};
       chid5_in_message_start <= {4'h5, 9'b0};
       chid5_in_som <= 1'b1;
       chid5_in_message_id <= 12'h000;
       chid5_in_message_lines <= 10'h000;
-//      chid5_in_message_count <= 0;
       chid6_out_head <= {4'h6, 9'b0};
       chid6_in_tail <= {4'h6, 9'b0};
       chid6_in_message_start <= {4'h6, 9'b0};
       chid6_in_som <= 1'b1;
       chid6_in_message_id <= 12'h000;
       chid6_in_message_lines <= 10'h000;
-//      chid6_in_message_count <= 0;
       chid7_out_head <= {4'h7, 9'b0};
       chid7_in_tail <= {4'h7, 9'b0};
       chid7_in_message_start <= {4'h7, 9'b0};
       chid7_in_som <= 1'b1;
       chid7_in_message_id <= 12'h000;
       chid7_in_message_lines <= 10'h000;
-//      chid7_in_message_count <= 0;
       chid8_out_head <= {4'h8, 9'b0};
       chid8_in_tail <= {4'h8, 9'b0};
       chid8_in_message_start <= {4'h8, 9'b0};
       chid8_in_som <= 1'b1;
       chid8_in_message_id <= 12'h000;
       chid8_in_message_lines <= 10'h000;
-//      chid8_in_message_count <= 0;
       chid9_out_head <= {4'h9, 9'b0};
       chid9_in_tail <= {4'h9, 9'b0};
       chid9_in_message_start <= {4'h9, 9'b0};
       chid9_in_som <= 1'b1;
       chid9_in_message_id <= 12'h000;
       chid9_in_message_lines <= 10'h000;
-//      chid9_in_message_count <= 0;
       chid10_out_head <= {4'ha, 9'b0};
       chid10_in_tail <= {4'ha, 9'b0};
       chid10_in_message_start <= {4'ha, 9'b0};
       chid10_in_som <= 1'b1;
       chid10_in_message_id <= 12'h000;
       chid10_in_message_lines <= 10'h000;
-//      chid10_in_message_count <= 0;
       chid11_out_head <= {4'hb, 9'b0};
       chid11_in_tail <= {4'hb, 9'b0};
       chid11_in_message_start <= {4'hb, 9'b0};
       chid11_in_som <= 1'b1;
       chid11_in_message_id <= 12'h000;
       chid11_in_message_lines <= 10'h000;
-//      chid11_in_message_count <= 0;
       chid12_out_head <= {4'hc, 9'b0};
       chid12_in_tail <= {4'hc, 9'b0};
       chid12_in_message_start <= {4'hc, 9'b0};
       chid12_in_som <= 1'b1;
       chid12_in_message_id <= 12'h000;
       chid12_in_message_lines <= 10'h000;
-//      chid12_in_message_count <= 0;
       chid13_out_head <= {4'hd, 9'b0};
       chid13_in_tail <= {4'hd, 9'b0};
       chid13_in_message_start <= {4'hd, 9'b0};
       chid13_in_som <= 1'b1;
       chid13_in_message_id <= 12'h000;
       chid13_in_message_lines <= 10'h000;
-//      chid13_in_message_count <= 0;
       chid14_out_head <= {4'he, 9'b0};
       chid14_in_tail <= {4'he, 9'b0};
       chid14_in_message_start <= {4'he, 9'b0};
       chid14_in_som <= 1'b1;
       chid14_in_message_id <= 12'h000;
       chid14_in_message_lines <= 10'h000;
-//      chid14_in_message_count <= 0;
       chid15_out_head <= {4'hf, 9'b0};
       chid15_in_tail <= {4'hf, 9'b0};
       chid15_in_message_start <= {4'hf, 9'b0};
       chid15_in_som <= 1'b1;
       chid15_in_message_id <= 12'h000;
       chid15_in_message_lines <= 10'h000;
-//      chid15_in_message_count <= 0;
 
       // Accumulated in_mesage_count
       // Stuck at max_count
@@ -2197,7 +2145,6 @@ localparam
 		chid1_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid1_in_message_id <= current_in_message_id;
-//		  chid1_in_message_count <= chid1_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid1_in_message_count <= total_chid1_in_message_count + 1;
 		end
 	      end
@@ -2212,7 +2159,6 @@ localparam
 		chid2_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid2_in_message_id <= current_in_message_id;
-//		  chid2_in_message_count <= chid2_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid2_in_message_count <= total_chid2_in_message_count + 1;
 		end
 	      end
@@ -2227,7 +2173,6 @@ localparam
 		chid3_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid3_in_message_id <= current_in_message_id;
-		  //		  chid3_in_message_count <= chid3_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid3_in_message_count <= total_chid3_in_message_count + 1;
 		end
 	      end
@@ -2242,7 +2187,6 @@ localparam
 		chid4_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid4_in_message_id <= current_in_message_id;
-//		  chid4_in_message_count <= chid4_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid4_in_message_count <= total_chid4_in_message_count + 1;
 		end
 	      end
@@ -2257,7 +2201,6 @@ localparam
 		chid5_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid5_in_message_id <= current_in_message_id;
-//		  chid5_in_message_count <= chid5_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid5_in_message_count <= total_chid5_in_message_count + 1;
 		end
 	      end
@@ -2272,7 +2215,6 @@ localparam
 		chid6_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid6_in_message_id <= current_in_message_id;
-//		  chid6_in_message_count <= chid6_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid6_in_message_count <= total_chid6_in_message_count + 1;
 		end
 	      end
@@ -2287,7 +2229,6 @@ localparam
 		chid7_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid7_in_message_id <= current_in_message_id;
-//		  chid7_in_message_count <= chid7_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid7_in_message_count <= total_chid7_in_message_count + 1;
 		end
 	      end
@@ -2302,7 +2243,6 @@ localparam
 		chid8_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid8_in_message_id <= current_in_message_id;
-//		  chid8_in_message_count <= chid8_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid8_in_message_count <= total_chid8_in_message_count + 1;
 		end
 	      end
@@ -2317,7 +2257,6 @@ localparam
 		chid9_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid9_in_message_id <= current_in_message_id;
-//		  chid9_in_message_count <= chid9_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid9_in_message_count <= total_chid9_in_message_count + 1;
 		end
 	      end
@@ -2332,7 +2271,6 @@ localparam
 		chid10_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid10_in_message_id <= current_in_message_id;
-//		  chid10_in_message_count <= chid10_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid10_in_message_count <= total_chid10_in_message_count + 1;
 		end
 	      end
@@ -2347,7 +2285,6 @@ localparam
 		chid11_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid11_in_message_id <= current_in_message_id;
-//		  chid11_in_message_count <= chid11_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid11_in_message_count <= total_chid11_in_message_count + 1;
 		end
 	      end
@@ -2362,7 +2299,6 @@ localparam
 		chid12_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid12_in_message_id <= current_in_message_id;
-//		  chid12_in_message_count <= chid12_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid12_in_message_count <= total_chid12_in_message_count + 1;
 		end
 	      end
@@ -2377,7 +2313,6 @@ localparam
 		chid13_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid13_in_message_id <= current_in_message_id;
-//		  chid13_in_message_count <= chid13_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid13_in_message_count <= total_chid13_in_message_count + 1;
 		end
 	      end
@@ -2392,7 +2327,6 @@ localparam
 		chid14_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid14_in_message_id <= current_in_message_id;
-//		  chid14_in_message_count <= chid14_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid14_in_message_count <= total_chid14_in_message_count + 1;
 		end
 	      end
@@ -2407,7 +2341,6 @@ localparam
 		chid15_in_opcode <= current_in_opcode;
 		if (current_in_eom) begin
 		  chid15_in_message_id <= current_in_message_id;
-//		  chid15_in_message_count <= chid15_in_message_count + (update_channel_out_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 		  total_chid15_in_message_count <= total_chid15_in_message_count + 1;
 		end
 	      end
@@ -2426,113 +2359,95 @@ localparam
 	      begin
 		chid0_out_head <= current_out_head;
 		chid0_out_som <= current_out_som;
-
-		// Message count is not decremented if there is both inc and dec request at the same time
-//		chid0_in_message_count <= chid0_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    1:
 	      begin
 		chid1_out_head <= current_out_head;
 		chid1_out_som <= current_out_som;
-//		chid1_in_message_count <= chid1_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    2:
 	      begin
 		chid2_out_head <= current_out_head;
 		chid2_out_som <= current_out_som;
-//		chid2_in_message_count <= chid2_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    3:
 	      begin
 		chid3_out_head <= current_out_head;
 		chid3_out_som <= current_out_som;
-//		chid3_in_message_count <= chid3_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    4:
 	      begin
 		chid4_out_head <= current_out_head;
 		chid4_out_som <= current_out_som;
-//		chid4_in_message_count <= chid4_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    5:
 	      begin
 		chid5_out_head <= current_out_head;
 		chid5_out_som <= current_out_som;
-//		chid5_in_message_count <= chid5_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    6:
 	      begin
 		chid6_out_head <= current_out_head;
 		chid6_out_som <= current_out_som;
-//		chid6_in_message_count <= chid6_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    7:
 	      begin
 		chid7_out_head <= current_out_head;
 		chid7_out_som <= current_out_som;
-//		chid7_in_message_count <= chid7_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    8:
 	      begin
 		chid8_out_head <= current_out_head;
 		chid8_out_som <= current_out_som;
-//		chid8_in_message_count <= chid8_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    9:
 	      begin
 		chid9_out_head <= current_out_head;
 		chid9_out_som <= current_out_som;
-//		chid9_in_message_count <= chid9_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    10:
 	      begin
 		chid10_out_head <= current_out_head;
 		chid10_out_som <= current_out_som;
-//		chid10_in_message_count <= chid10_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    11:
 	      begin
 		chid11_out_head <= current_out_head;
 		chid11_out_som <= current_out_som;
-//		chid11_in_message_count <= chid11_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    12:
 	      begin
 		chid12_out_head <= current_out_head;
 		chid12_out_som <= current_out_som;
-//		chid12_in_message_count <= chid12_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    13:
 	      begin
 		chid13_out_head <= current_out_head;
 		chid13_out_som <= current_out_som;
-//		chid13_in_message_count <= chid13_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    14:
 	      begin
 		chid14_out_head <= current_out_head;
 		chid14_out_som <= current_out_som;
-//		chid14_in_message_count <= chid14_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    15:
 	      begin
 		chid15_out_head <= current_out_head;
 		chid15_out_som <= current_out_som;
-//		chid15_in_message_count <= chid15_in_message_count - (update_channel_in_regs && (current_in_chid == current_out_chid) ? 0 : 1);
 	      end
 	    
 	    default: begin
@@ -3093,11 +3008,6 @@ endgenerate
   // input_buffer watermark (see afu_ctrl0[7:0] configuration):
   // Since the watermark logic is handled outside the packet_in* SM, *watrmark_met is valid only if head and tail belong to current chid
   assign current_in_buffer_watermark_met = (current_in_buffer_data_countD >= input_buffer_watermark) ? 1'b1 : 1'b0;
-//  assign current_in_buffer_watermark_met = (current_in_tail[12:9] == current_in_chid) ?
-//					   ({1'b0, current_in_tail[8:0]} >= {1'b0, current_in_head[8:0]}) ?
-//					   ({1'b0, current_in_tail[8:0]} - {1'b0, current_in_head[8:0]}) >= input_buffer_watermark :
-//					   ({1'b0, current_in_head[8:0]} - {1'b0, current_in_tail[8:0]}) <= (CHANNEL_BUFFER_SIZE - input_buffer_watermark) :
-//					   1'b0;
   
   always @(posedge clk) begin
     if (reset || afu_reset) begin
@@ -3223,7 +3133,6 @@ endgenerate
       current_in_som <= 1;
       current_in_message_id <= 12'h000;  // message IDs per channel buffer: 256. Yet, the counter is 12 bits
       input_buffer_write <= 0;
-//      input_buffer_eth_write <= 0;
       input_buffer_meta_write <= 0;
       input_buffer_wren <= 1'b1; // input buffer write port is enabled by default. TBD: Power optimization: Consider enabling upon need only
       write_eth_header = 1'b0;
@@ -3233,12 +3142,6 @@ endgenerate
       hist_pci2sbu_packet_event <= 1'b0;
       hist_pci2sbu_eompacket_event <= 1'b0;
       hist_pci2sbu_message_event <= 1'b0;
-//      total_hmac_queue0_received_data <= 64'b0;
-//      total_hmac_queue0_received_delta <= 33'b0;
-//      total_hmac_queue0_received_requests <= 48'b0;
-//      total_hmac_queue1_received_data <= 64'b0;
-//      total_hmac_queue1_received_delta <= 33'b0;
-//      total_hmac_queue1_received_requests <= 48'b0;
       total_hmac_queue0_dropped_requests <= 48'b0;
       total_hmac_queue1_dropped_requests <= 48'b0;
     end
@@ -3247,12 +3150,6 @@ endgenerate
       if (clear_hmac_message_counters)
 //	// Cleared via afu_ctrl3
 	begin
-//	  total_hmac_queue0_received_data <= 64'b0;
-//	  total_hmac_queue0_received_delta <= 33'b0;
-//	  total_hmac_queue0_received_requests <= 48'b0;
-//	  total_hmac_queue1_received_data <= 64'b0;
-//	  total_hmac_queue1_received_delta <= 33'b0;
-//	  total_hmac_queue1_received_requests <= 48'b0;
 	  total_hmac_queue0_dropped_requests <= 48'b0;
 	  total_hmac_queue1_dropped_requests <= 48'b0;
 	end
@@ -3263,7 +3160,6 @@ endgenerate
 	  begin
 	    current_in_message_ok <= 1'b0;
 	    input_buffer_write <= 0;
-//	    input_buffer_eth_write <= 0;
 	    input_buffer_meta_write <= 0;
 	    update_channel_in_regs <= 0;
 	    pci2sbu_ready <= 0;
@@ -3274,44 +3170,34 @@ endgenerate
 	    
 	    if (pci2sbu_axi4stream_vld)
 	      begin
-//		if (hmac_queues_priority_disable || (packet_in_selected_queue == pci2sbu_axi4stream_tuser[71:68]))
-//		  begin
-// Verify that currently received packet queue match the expected pioritized queue
-// If not, then drop !!!
-		    // start of a new packet, not neccessarily the first of a message
-		    //
-		    // First line of a packet includes a meaningful TUSER data: Keep copy of relevant TUSER data, to be saved later to channel's context
-		    // Notice that we sample pci2sbu_axi4stream_tdata WITHOUT dropping this line from input stream (pci2sbu_ready not asserted).
-		    //
-		    // current_in_chid is used to select the current channel related variables, which are sampled at the following state (clock)
-		    
-		    // TBD: Consider current_in_context while choosing a channel to be serviced
-		    // TBD: Add a scheme to filter unrecognized packets 
-		    //		current_in_context <= pci2sbu_axi4stream_tuser[63:60];   // Message context
-		    current_in_tuser_steering_tag <= pci2sbu_axi4stream_tuser[71:56];  // hmac: Steering_tag is separately sampled
-		    current_in_tuser_message_size <= {2'b00, pci2sbu_axi4stream_tuser[29:16]};  // hmac: Length is separately sampled
-		    current_in_tuser_message_lines <= pci2sbu_axi4stream_tuser[29:22] + (pci2sbu_axi4stream_tuser[21:16] > 0);
-		    
-		    // current_in_chid <= pci2sbu_axi4stream_tuser[59:56];      // Message channel ID
-		    //		// hmac chid is redifined to serve as queue#
-		    //                // For test_bench only: Using the upper nibble in pci2sbu_axi4stream_tuser[71:56] as the queue_number
-		    current_in_chid <= pci2sbu_axi4stream_tuser[71:68];
+		// start of a new packet, not neccessarily the first of a message
+		//
+		// First line of a packet includes a meaningful TUSER data: Keep copy of relevant TUSER data, to be saved later to channel's context
+		// Notice that we sample pci2sbu_axi4stream_tdata WITHOUT dropping this line from input stream (pci2sbu_ready not asserted).
+		//
+		// current_in_chid is used to select the current channel related variables, which are sampled at the following state (clock)
+		
+		// TBD: Consider current_in_context while choosing a channel to be serviced
+		// TBD: Add a scheme to filter unrecognized packets 
+		//		current_in_context <= pci2sbu_axi4stream_tuser[63:60];   // Message context
+		current_in_tuser_steering_tag <= pci2sbu_axi4stream_tuser[71:56];  // hmac: Steering_tag is separately sampled
+		current_in_tuser_message_size <= {2'b00, pci2sbu_axi4stream_tuser[29:16]};  // hmac: Length is separately sampled
+		current_in_tuser_message_lines <= pci2sbu_axi4stream_tuser[29:22] + (pci2sbu_axi4stream_tuser[21:16] > 0);
+		
+		// current_in_chid <= pci2sbu_axi4stream_tuser[59:56];      // Message channel ID
+		//		// hmac chid is redifined to serve as queue#
+		//                // For test_bench only: Using the upper nibble in pci2sbu_axi4stream_tuser[71:56] as the queue_number
+		current_in_chid <= pci2sbu_axi4stream_tuser[71:68];
 
 		// TBD: replace with current_in_chid
 		current_in_dropped_queue <= pci2sbu_axi4stream_tuser[71:68];
 		
-		    current_in_eom <= afu_ctrl0[28] ? 1'b1 : pci2sbu_axi4stream_tuser[39]; // End_Of_Message indication: 
-		    // Current packet is last packet of current message
-		    // Forced to '1, while EOM not implemented in FLD
-		    current_in_pkt_type <= pci2sbu_axi4stream_tuser[30];     // packet_type: 0: Ethernet, 1: DRMA RC
-		    
-		    packet_in_nstate <= CHANNEL_IN_SELECT;
-//		  end
-//		else 
-//		  begin
-//		    current_in_dropped_queue <= pci2sbu_axi4stream_tuser[71:68];
-//		    packet_in_nstate <= PACKET_IN_DROP;
-//		  end
+		current_in_eom <= afu_ctrl0[28] ? 1'b1 : pci2sbu_axi4stream_tuser[39]; // End_Of_Message indication: 
+		// Current packet is last packet of current message
+		// Forced to '1, while EOM not implemented in FLD
+		current_in_pkt_type <= pci2sbu_axi4stream_tuser[30];     // packet_type: 0: Ethernet, 1: DRMA RC
+		
+		packet_in_nstate <= CHANNEL_IN_SELECT;
 	      end
 	    
 	  end // case: PACKET_IN_IDLE
@@ -3336,7 +3222,6 @@ endgenerate
 	    hist_pci2sbu_eompacket_event_size <= 16'h0000;
 	    hist_pci2sbu_eompacket_event_chid <= current_in_chid;
 	    hist_pci2sbu_eompacket_event <= 1'b0;
-//	    hist_pci2sbu_message_size <= 16'h0000;
 	    hist_pci2sbu_message_event_chid <= current_in_chid;
 	    hist_pci2sbu_message_event <= 1'b0;
 
@@ -3353,7 +3238,6 @@ endgenerate
 		    // current_in_message_size <= pci2sbu_axi4stream_tdata[495:480];
 		    // hmac message_size originates in TUSER[]
 		    current_in_message_size <= pci2sbu_axi4stream_tdata[495:480];
-		    // current_in_opcode <= pci2sbu_axi4stream_tdata[511:504];
 		    current_in_opcode <= 8'h00; // hmac: opcode is meaningless		    
 		    packet_in_nstate <= PACKET_IN_WRITE_HEADER;
 		  end
@@ -3428,250 +3312,9 @@ endgenerate
 	      end
 	  end
 	
-
-//	PACKET_IN_IDLE:
-//	  // Waiting for next packet in input pci2sbu stream
-//	  begin
-//	    current_in_message_ok <= 1'b0;
-//	    input_buffer_write <= 0;
-////	    input_buffer_eth_write <= 0;
-//	    input_buffer_meta_write <= 0;
-//	    update_channel_in_regs <= 0;
-//	    pci2sbu_ready <= 0;
-//	    pci2sbu_pushback <= 1'b0;
-//	    packet_in_progress <= 1'b0;
-//	    current_in_message_status <= 8'h00;
-//	    current_in_tail_incremented <= 1'b0;
-//	    
-//	    if (pci2sbu_axi4stream_vld && ~current_in_buffer_full)
-//	      begin
-//		// start of a new packet, not neccessarily the first of a message
-//		//
-//		// First line of a packet includes a meaningful TUSER data: Keep copy of relevant TUSER data, to be saved later to channel's context
-//		// Notice that we sample pci2sbu_axi4stream_tdata WITHOUT dropping this line from input stream (pci2sbu_ready not asserted).
-//		//
-//		// current_in_chid is used to select the current channel related variables, which are sampled at the following state (clock)
-//
-//		// TBD: Consider current_in_context while choosing a channel to be serviced
-//		// TBD: Add a scheme to filter unrecognized packets 
-//                //		current_in_context <= pci2sbu_axi4stream_tuser[63:60];   // Message context
-//		current_in_tuser_steering_tag <= {4'h0, pci2sbu_axi4stream_tuser[67:56]};  // hmac: Steering_tag is separately sampled
-//		current_in_tuser_message_size <= {2'b00, pci2sbu_axi4stream_tuser[29:16]};  // hmac: Length is separately sampled
-//
-//		// hmac chid is redifined to serve as queue#
-//                // Using the upper nibble in pci2sbu_axi4stream_tuser[71:56] as the queue_number
-//		current_in_chid <= pci2sbu_axi4stream_tuser[71:68];
-//
-//		// hmac: eom is always set
-//		current_in_eom <= afu_ctrl0[28] ? 1'b1 : pci2sbu_axi4stream_tuser[39]; // End_Of_Message indication: 
-//		                                                         // Current packet is last packet of current message
-//		                                                         // Forced to '1, while EOM not implemented in FLC
-//		current_in_pkt_type <= pci2sbu_axi4stream_tuser[30];     // packet_type: 0: Ethernet, 1: DRMA RC
-//
-//
-//		// hmac: chid is fixed at 4'h0, so CHANNEL_IN_SELECT state is redundant. Merged with CHANNEL_IN_IDLE.
-////		packet_in_nstate <= CHANNEL_IN_SELECT;
-////	      end
-//	    
-////	  end // case: PACKET_IN_IDLE
-//	
-////	CHANNEL_IN_SELECT:
-//
-//	  // A new packet is pending in pci2sbu, and we already know its destined channel
-//	  // Load the selected channel variables from the chidx_* array
-//	  // First packet line is still valid & pending in pci2sbu_axi4stream_tdata, nothing read so far
-////	  begin
-//		current_in_message_id <= current_in_message_idD; // Holding the ID of the currently handled message
-//		current_in_tail <= current_in_tailD;             // Both head and tail are required, for buffer_full calculation
-//		current_in_head <= current_in_headD;
-//		current_in_som <= current_in_somD;
-//		current_in_message_start <= current_in_message_startD;
-//		current_in_message_lines <= current_in_message_linesD;
-//		current_in_mask_message_id <= ((afu_ctrl2[15:0] >> current_in_chid) & 16'h0001) > 0 ? 1'b1 : 1'b0;
-//		
-//	    // pci2sbu_packet_size update
-//		hist_pci2sbu_packet_event_size <= 16'h0000;
-//		hist_pci2sbu_packet_event_chid <= current_in_chid;
-//		hist_pci2sbu_packet_event <= 1'b0;
-//		hist_pci2sbu_eompacket_event_size <= 16'h0000;
-//		hist_pci2sbu_eompacket_event_chid <= current_in_chid;
-//		hist_pci2sbu_eompacket_event <= 1'b0;
-//		//	    hist_pci2sbu_message_size <= 16'h0000;
-//		hist_pci2sbu_message_event_chid <= current_in_chid;
-//		hist_pci2sbu_message_event <= 1'b0;
-//		
-//		// An Ethernet packet: Sample the header for a later header update
-////		if (~current_in_pkt_type)
-//		if (~pci2sbu_axi4stream_tuser[30]) 
-//		  current_in_eth_header <= pci2sbu_axi4stream_tdata[511:0];
-//		
-////		if (current_in_somD)
-//		  // hmac: A single packet per hmac request is assumed. som is always 1
-//		  // the else part is removed
-////		  begin
-//		    // Current packet is first in message of current chid.
-//		    //		if (~current_in_pkt_type)
-////		if (~pci2sbu_axi4stream_tuser[30]) 
-//		  // hmac: Only ethernet packets are supported
-////		  begin
-//		    // An RDMA RC packet: Capture message size & opcode, and store the header to input buffer
-//		    // current_in_message_size <= pci2sbu_axi4stream_tdata[495:480];
-//		    // hmac message_size originates in TUSER[]
-////		    current_in_message_size <= pci2sbu_axi4stream_tdata[495:480];
-//		    // current_in_opcode <= pci2sbu_axi4stream_tdata[511:504];
-//		current_in_opcode <= 8'h00; // hmac: opcode is meaningless		    
-////		    packet_in_nstate <= PACKET_IN_WRITE_HEADER;
-////		  end
-////		else
-////		  begin
-//		    // An Ethernet packet: Message size & opcode will be captured from message header after dropping the Ethernet header.
-////		packet_in_nstate <= PACKET_IN_WRITE_ETH_HEADER;
-////		  end
-////	      end
-//	    //		else
-////		  begin
-////		    // Current packet is not the first of a message: read its length from channel context, independent of packet type
-////		    current_in_message_size <= current_in_message_sizeD;
-////		    current_in_opcode <= current_in_opcodeD;
-////		    //		if (~current_in_pkt_type)
-////		    if (~pci2sbu_axi4stream_tuser[30]) 
-////		      begin
-////			packet_in_progress <= 1'b1;
-////			packet_in_nstate <= PACKET_IN_PROGRESS;
-////		      end
-////		    else
-////		      packet_in_nstate <= PACKET_IN_WRITE_ETH_HEADER;
-////		  end
-////	      end
-////	  end
-//	
-////	PACKET_IN_WRITE_ETH_HEADER:
-////	  begin
-////	    if (current_in_som)
-//	      // hmac: A single packet per hmac request is assumed. som is always 1
-//	      // This state is merged with previous one.  
-//
-//	      // Start of a message, store the eth header into input buffer
-////	      begin
-////		if (~current_in_buffer_full)
-////		  begin
-////		write_eth_header = 1'b1;
-//		input_buffer_write <= 1'b1;
-//		input_buffer_meta_write <= 1'b1;
-//		pci2sbu_ready <= 1'b1;
-//		pci2sbu_pushback <= 1'b0;
-//		
-//		// 1-clock write settle
-//		packet_in_nstate <= PACKET_IN_WAIT_WRITE;
-//		//		  end
-//		// else: input_buffer is full. wait...
-//		//	      end
-//		//	    else
-//		// This is an intermmediate packet, and its eth header was already written
-//		// Drop current pci2sbu line without writing to input_buffer
-//		//	      begin
-//		//		write_eth_header = 1'b0;
-//		//		pci2sbu_ready <= 1'b1;
-//		//		packet_in_nstate <= PACKET_IN_WAIT_WRITE;
-//	      end
-//	    else if (current_in_buffer_full)
-//	      // Pushback pci2sbu and wait here...
-//	      // The pushback takes effect only if pci2sbu_data is valid
-//		pci2sbu_pushback <= 1'b1;
-//	  end
-	
 	PACKET_IN_WRITE_HEADER:
 	  // Storing message header to input buffer. The header is still valid at pci2sbu_axi4stream_tdata
 	  begin
-	    // ==============================================================================
-	    // ZUC request header format (as agreed with Haggai & Eitan, 28-Apr-2020):
-	    // ==============================================================================
-	    // pci2sbu[] | Description
-	    // ----------+--------------------------------------------------------------------
-	    // 511:504     Opcode[7:0]:
-	    //             0 – encrypt/decrypt
-	    //             1 – authenticate
-	    // 503:496     Reserved
-	    // 495:480     Message length[15:0] in bytes
-	    // 479:416     Message ID (not used by zuc AFU)
-	    // 415:288     Key[127:0]
-	    // 287:160     IV[127:0]
-	    // 159:0       Reserved
-	    //
-	    //
-	    // ==============================================================================
-	    // ZUC cipher response header format (as agreed with Haggai & Eitan, 28-Apr-2020):
-	    // ==============================================================================
-	    // pci2sbu[] | Description
-	    // ----------+--------------------------------------------------------------------
-	    // 511:504     Opcode (same as in message request)
-	    // 503:480     Reserved
-	    // 479:416     Message ID (same as in message request)
-	    // 415:0       Reserved (cleared in current implementation)
-	    //
-	    //
-	    // ==============================================================================
-	    // ZUC auth response header format (as agreed with Haggai & Eitan, 28-Apr-2020):
-	    // ==============================================================================
-	    // pci2sbu[] | Description
-	    // ----------+--------------------------------------------------------------------
-	    // 511:504     Opcode (same as in message request)
-	    // 503:480     Reserved
-	    // 479:416     Message ID (same as in message request)
-	    // 415:160     Reserved (cleared in current implementation)
-	    // 159:128     MAC
-	    // 127:0       Reserved (cleared in current implementation) (tkeep = 128'b0) 
-	    //
-	    //
-	    // ==============================================================================
-	    // ZUC Request message tuser (as agreed with Haggai, 6-May-2020):
-	    // ==============================================================================
-	    // tuser[]   | Field         | Description
-	    // ----------+--------------------------------------------------------------------
-	    // 71:68       reserved        Unused in zuc AFU
-	    // 67:64       afu_id          Haggai: Since we have only one afu, afu_id can be ignored
-	    // 63:60       afu_context     Haggai: afu_context should be taken into account, since the endpoint ID is not unique on its own.
-	    // 59:56       channel_id      endpoint ID (channel ID per context)
-	    // 55:40       Reserved
-	    // 39:39       end_of_message  Marks end of message for multi-packet messages.
-	    // 38:31       Reserved
-	    // 30:30       pkt_type        0 – Ethernet, 1 – RDMA RC
-	    // 29:16       Length          Size of the packet.
-	    // 15:0        Reserved
-	    //
-	    //
-	    // ==============================================================================
-	    // ZUC Response message tuser (as agreed with Haggai, 6-May-2020):
-	    // ==============================================================================
-	    // tuser[]   | Field         | Description
-	    // ----------+--------------------------------------------------------------------
-	    // 71:12       Reserved
-	    // 11:0        channel_id      = Request.tuser[67:56]
-	    //
-	    //
-	    // ==============================================================================
-	    // Internal AFU Message Header:
-	    // Generated locally, and transferred between the AFU modules.
-	    // Required for proper and/or simplified implementation  	    
-	    // ==============================================================================
-	    // header[]  | Field         | Description
-	    // ----------+--------------------------------------------------------------------
-	    // [515:511]   TBD: Add these bits to all intermmediate fifos: {2'b00, EOM, SOM}
-	    // [511:160]   pci2sbu_tdata[511:160]
-	    // [159:60]    Reserved (cleared)
-	    // [59:48]     pci2sbu_axi4stream_tuser[67:56]
-	    // [47:40]     Opcode, as captured from "message_opcode" field in message header
-	    // [39:24]     Message size (bytes), as captured from "message_size" field in message header
-	    // [23:20]     Channel ID
-	    // [19:8]      Message ID
-	    // [7:0]       Message status:
-	    //             [7:3] Reserved
-	    //             [2]   Message is too long (> 9KB)
-	    //             [1]   Mismatching message length
-	    //                   The actual message length (in flits) is compared against the reported length (mesasge_header[495:480])
-	    //                   If no match, this message will be dropped (or bypassed) down the road.
-	    //             [0]   Message is too long (> 9KB)
-	    
 	    // Incoming message header is still not stored to input buffer:
 	    // Relevant parts of message header are sampled
 	    current_in_message_status_update <= 1'b0;
@@ -3711,7 +3354,6 @@ endgenerate
 	PACKET_IN_WAIT_WRITE:
 	  begin
 	    input_buffer_write <= 0;
-//	    input_buffer_eth_write <= 0;
 	    input_buffer_meta_write <= 0;
 	    pci2sbu_ready <= 0;
 	    pci2sbu_pushback <= 1'b0;
@@ -3735,7 +3377,6 @@ endgenerate
 		// Packet has ended. update the channel related variables
 		current_in_tfirst <= 1'b1;
 		
-//		packet_in_progress <= 1'b0;
 		hist_pci2sbu_packet_event <= 1'b1;
 
 
@@ -3748,82 +3389,6 @@ endgenerate
 		    current_in_message_status_adrs <= current_in_message_start;
 
 		    current_in_som <= 1'b1;
-		    
-		    // Upon End_Of_Message, update message_id to next successive message
-		    // At the end of current packet, the incremented count is saved within current_channel context,
-		    // and will be assigned as the message_id of next message 
-
-		    // message_id scheme:
-		    // Assumption: Per channel messages are always received in order.
-		    // Per channel, the id is incremented upon receiving a new message, and then attached to the message header while being stored to input buffer.
-		    // current_in_message_id[11:0]  - message_id. 12bit count. Incremented modulo 12 bit.
-		    // Only zuc messages are tagged with a message_id.
-		    // Non zuc messages: afubypass, zuc_core bypass, etc.
-		    // message_id is incremented only if current message is OK, for proper message ordering at the fifo_out stage.
-		    // A message is OK if:
-		    // 1. message_id is not masked for current chid (afu_ctrl0[chid] is not set)
-		    // 2. It has a valid zuc command
-		    // 3. Its length field (header[495:480] matches the actual length
-		    // 4. The message length <= 9KB
-//		    if (~current_in_mask_message_id && current_in_zuccmd && (current_in_message_lines == current_in_flits) && (current_in_flits <= 10'h090))
-//		    if (current_in_zuccmd && (current_in_message_lines == current_in_flits) && (current_in_flits <= 10'h090))
-//		      begin
-//			current_in_message_ok <= 1'b1;
-//			if (current_in_message_id == 12'hfff)
-//			  current_in_message_id <= 12'h001; // Lowest ID value is 12'h001, not zero
-//			else
-//			  // Testing: Increment by 2 when message_id == 0x10. Done to test the message ordering logic:
-//			  // Verify that the sbu2pci output is stuck after writing message_id==0x10 
-//			  //current_in_message_id <= current_in_message_id + 1 + (current_in_chid == 4'h8 && current_in_message_id == 12'h030);
-//			  current_in_message_id <= current_in_message_id + 1;
-//		      end
-		    
-		    // Message status update:
-//		    if (current_in_illegal_cmd)
-//		      current_in_message_status[0] <= 1'b1; // Non zuc command encountered
-
-//		    if (({6'b0, current_in_message_lines}) != (current_in_message_size & 16'hffc0 >> 6) + ((current_in_message_size & 16'h003f) > 0 ? 1 : 0))
-//		    if (current_in_message_lines != current_in_flits)
-//			current_in_message_status[1] <= 1'b1; // 
-//
-//		    if (current_in_flits > 10'h090)
-//		      current_in_message_status[2] <= 1'b1; // Message too long (> 9KB)
-
-		    // hmac: Upon end of hmac request, update queue0/1 total received bytes
-		    // Only two queues are implemented
-//		    case (current_in_chid)
-//		      QUEUE0:
-//			begin
-//			  total_hmac_queue0_received_requests <= total_hmac_queue0_received_requests + 1'b1;
-//			  total_hmac_queue0_received_data <= total_hmac_queue0_received_data + {48'b0, current_in_tuser_message_size};
-//			  if (total_hmac_queue0_received_delta_next[32])
-//			    // When delta counter overflows, both queue0 & queque1 delta's are divide by 2:
-//			    begin
-//			      total_hmac_queue0_received_delta <= total_hmac_queue0_received_delta >> 1;
-//			      total_hmac_queue1_received_delta <= total_hmac_queue1_received_delta >> 1;
-//			    end
-//			  else
-//			    total_hmac_queue0_received_delta <= total_hmac_queue0_received_delta_next;
-//			end
-//
-//		      QUEUE1:
-//			begin
-//			  total_hmac_queue1_received_requests <= total_hmac_queue1_received_requests + 1'b1;
-//			  total_hmac_queue1_received_data <= total_hmac_queue1_received_data + {48'b0, current_in_tuser_message_size};
-//			  if (total_hmac_queue1_received_delta_next[32])
-//			    // When delta counter overflows, both queue0 & queque1 delta's are divide by 2:
-//			    begin
-//			      total_hmac_queue0_received_delta <= total_hmac_queue0_received_delta >> 1;
-//			      total_hmac_queue1_received_delta <= total_hmac_queue1_received_delta >> 1;
-//			    end
-//			  else
-//			    total_hmac_queue1_received_delta <= total_hmac_queue1_received_delta_next;
-//			end	
-//		      
-//		      default:
-//			begin
-//			end
-//		    endcase // case (current_in_chid)
 		    
 		    // hmac: message status is ignored
 		    current_in_message_status[2:0] <= 3'b0;
@@ -3961,7 +3526,6 @@ endgenerate
 	    current_in_message_status_update <= 1'b0;
 	    packet_in_progress <= 1'b0;
 	    input_buffer_write <= 0;
-//	    input_buffer_eth_write <= 0;
 	    input_buffer_meta_write <= 0;
 	    pci2sbu_ready <= 0;
 	    pci2sbu_pushback <= 1'b0;
@@ -4043,37 +3607,14 @@ endgenerate
   // message_out_selected_queue[0] points to the preferred queue
 
   //// The priority scheme is active only if there are pending messages in both queues 0 & 1.
-  //  assign messages_queue_mask = ((messages_validD[1:0] == 2'b11) && ~hmac_queues_priority_disable) ? {14'h0000, message_out_selected_queue[1:0]} : 16'hffff;
-//  assign messages_queue0_mask = hmac_queues_priority_disable ? 1'b1 : ((messages_validD[1:0] == 2'b11) || (messages_validD[0] && (chid_in_message_count[0] > MESSAGES_WATERMARK)));
-//  assign messages_queue1_mask = hmac_queues_priority_disable ? 1'b1 : ((messages_validD[1:0] == 2'b11) || (messages_validD[1] && (chid_in_message_count[1] > MESSAGES_WATERMARK)));
-//  assign messages_queue0_mask = hmac_queues_priority_disable ? 1'b1 : ~(hmac_queue0_weight > hmac_queue1_weight) || ~queues_priority_on;
-//  assign messages_queue1_mask = hmac_queues_priority_disable ? 1'b1 :  (hmac_queue0_weight > hmac_queue1_weight) || ~queues_priority_on;
   assign messages_queue0_mask = hmac_queues_priority_disable ? 1'b1 : ~(hmac_queue0_weight > hmac_queue1_weight);
   assign messages_queue1_mask = hmac_queues_priority_disable ? 1'b1 :  (hmac_queue0_weight > hmac_queue1_weight);
 
   assign messages_masked_validD[15:0] = messages_validD[15:0] & {14'h3fff, messages_queue1_mask, messages_queue0_mask};
 
   
-  // There is at least one full message pending in input buffer, ready to be assigned to ZUC module
-//  assign message_out_validD = input_buffer_watermark_met[15] && (chid_in_message_count[15] > 0) ||
-//			      input_buffer_watermark_met[14] && (chid_in_message_count[14] > 0) ||
-//			      input_buffer_watermark_met[13] && (chid_in_message_count[13] > 0) ||
-//			      input_buffer_watermark_met[12] && (chid_in_message_count[12] > 0) ||
-//			      input_buffer_watermark_met[11] && (chid_in_message_count[11] > 0) ||
-//			      input_buffer_watermark_met[10] && (chid_in_message_count[10] > 0) ||
-//			      input_buffer_watermark_met[9]  && ( chid_in_message_count[9] > 0) ||
-//			      input_buffer_watermark_met[8]  && ( chid_in_message_count[8] > 0) ||
-//			      input_buffer_watermark_met[7]  && ( chid_in_message_count[7] > 0) ||
-//			      input_buffer_watermark_met[6]  && ( chid_in_message_count[6] > 0) ||
-//			      input_buffer_watermark_met[5]  && ( chid_in_message_count[5] > 0) ||
-//			      input_buffer_watermark_met[4]  && ( chid_in_message_count[4] > 0) ||
-//			      input_buffer_watermark_met[3]  && ( chid_in_message_count[3] > 0) ||
-//			      input_buffer_watermark_met[2]  && ( chid_in_message_count[2] > 0) ||
-//			      input_buffer_watermark_met[1]  && ( chid_in_message_count[1] > 0) ||
-//			      input_buffer_watermark_met[0]  && ( chid_in_message_count[0] > 0);
-//  assign message_out_validD = messages_masked_validD != 16'h0000;
+  // There is at least one full message pending in input buffer, ready to be assigned to module
   assign message_out_validD = messages_masked_validD != 16'h0000;
-//  assign messages_valid_doubleregD[31:0] = {messages_masked_validD, messages_masked_validD};
   assign messages_valid_doubleregD[31:0] = {messages_masked_validD, messages_masked_validD};
   
 
@@ -4221,207 +3762,7 @@ endgenerate
   reg [3:0] fifo_in_3to0_minload; // An asserted bit points to the modulex, whose load is the lowest among load3 thru load0
   reg [3:0] fifo_in_7to4_minload; // An asserted bit points to the modulex, whose load is the lowest among load7 thru load4
 
-  
-
-// hmac: min_load arbitration is not used !!
-//  always @(*) begin
-//    // disabled modules load should be ignored (set to to 'infinite' value). 
-//    fifo0_in_load = zuc_module0_enable
-//			 ?
-//			    ((module_fifo_in_watermark_met[0] || fifo_in_full[0])
-//                            ?
-//                               ((afu_ctrl0[17:16] == 2'b01)
-//                                  ?
-//                                     fifo0_in_total_load
-//                                  :
-//                                     {6'b0, fifo_in_data_count[0]})
-//                            :
-//                               16'h0000)
-//			 :
-//			    16'h7fff;
-//    
-//    fifo1_in_load = zuc_module1_enable ? ((module_fifo_in_watermark_met[1] || fifo_in_full[1]) ? ((afu_ctrl0[17:16] == 2'b01) ? fifo1_in_total_load : {6'b0, fifo_in_data_count[////////////1]}) : 16'h0000) : 16'h7fff;
-//    fifo2_in_load = zuc_module2_enable ? ((module_fifo_in_watermark_met[2] || fifo_in_full[2]) ? ((afu_ctrl0[17:16] == 2'b01) ? fifo2_in_total_load : {6'b0, fifo_in_data_count[2]}) : 16'h0000) : 16'h7fff;
-//    fifo3_in_load = zuc_module3_enable ? ((module_fifo_in_watermark_met[3] || fifo_in_full[3]) ? ((afu_ctrl0[17:16] == 2'b01) ? fifo3_in_total_load : {6'b0, fifo_in_data_count[3]}) : 16'h0000) : 16'h7fff;
-//    fifo4_in_load = zuc_module4_enable ? ((module_fifo_in_watermark_met[4] || fifo_in_full[4]) ? ((afu_ctrl0[17:16] == 2'b01) ? fifo4_in_total_load : {6'b0, fifo_in_data_count[4]}) : 16'h0000) : 16'h7fff;
-//    fifo5_in_load = zuc_module5_enable ? ((module_fifo_in_watermark_met[5] || fifo_in_full[5]) ? ((afu_ctrl0[17:16] == 2'b01) ? fifo5_in_total_load : {6'b0, fifo_in_data_count[5]}) : 16'h0000) : 16'h7fff;
-//    fifo6_in_load = zuc_module6_enable ? ((module_fifo_in_watermark_met[6] || fifo_in_full[6]) ? ((afu_ctrl0[17:16] == 2'b01) ? fifo6_in_total_load : {6'b0, fifo_in_data_count[6]}) : 16'h0000) : 16'h7fff;
-//    fifo7_in_load = zuc_module7_enable ? ((module_fifo_in_watermark_met[7] || fifo_in_full[7]) ? ((afu_ctrl0[17:16] == 2'b01) ? fifo7_in_total_load : {6'b0, fifo_in_data_count[7]}) : 16'h0000) : 16'h7fff;
-//
-//    fifo_in_load_3ge2 = (fifo3_in_load >= fifo2_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_3ge1 = (fifo3_in_load >= fifo1_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_3ge0 = (fifo3_in_load >= fifo0_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_2ge1 = (fifo2_in_load >= fifo1_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_2ge0 = (fifo2_in_load >= fifo0_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_1ge0 = (fifo1_in_load >= fifo0_in_load) ? 1'b1 : 1'b0;
-//
-//    fifo_in_load_7ge6 = (fifo7_in_load >= fifo6_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_7ge5 = (fifo7_in_load >= fifo5_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_7ge4 = (fifo7_in_load >= fifo4_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_6ge5 = (fifo6_in_load >= fifo5_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_6ge4 = (fifo6_in_load >= fifo4_in_load) ? 1'b1 : 1'b0;
-//    fifo_in_load_5ge4 = (fifo5_in_load >= fifo4_in_load) ? 1'b1 : 1'b0;
-//
-//    fifo_in_3to0_load_compared = {fifo_in_load_3ge2, fifo_in_load_3ge1, fifo_in_load_3ge0, fifo_in_load_2ge1, fifo_in_load_2ge0, fifo_in_load_1ge0};
-//    fifo_in_7to4_load_compared = {fifo_in_load_7ge6, fifo_in_load_7ge5, fifo_in_load_7ge4, fifo_in_load_6ge5, fifo_in_load_6ge4, fifo_in_load_5ge4};
-//
-//    // Find minimin load among load3 thru load0:
-//    case (fifo_in_3to0_load_compared)
-////      // fifo3_in_load is smallest:
-//      0:
-//	fifo_in_3to0_minload = 4'b1000;
-//      4:
-//	fifo_in_3to0_minload = 4'b1000;
-//      6:
-//	fifo_in_3to0_minload = 4'b1000;
-//      3:
-//	fifo_in_3to0_minload = 4'b1000;
-//      7:
-//	fifo_in_3to0_minload = 4'b1000;
-//
-//      // fifo2_in_load is smallest:
-//      56:
-//	fifo_in_3to0_minload = 4'b0100;
-//      48:
-//	fifo_in_3to0_minload = 4'b0100;
-//      57:
-//	fifo_in_3to0_minload = 4'b0100;
-//      41:
-//	fifo_in_3to0_minload = 4'b0100;
-//      32:
-//	fifo_in_3to0_minload = 4'b0100;
-//      33:
-//	fifo_in_3to0_minload = 4'b0100;
-//
-//      // fifo1_in_load is smallest:
-//      30:
-//	fifo_in_3to0_minload = 4'b0010;
-//      62:
-//	fifo_in_3to0_minload = 4'b0010;
-//      22:
-//	fifo_in_3to0_minload = 4'b0010;
-//      20:
-//	fifo_in_3to0_minload = 4'b0010;
-//      60:
-//	fifo_in_3to0_minload = 4'b0010;
-//      52:
-//	fifo_in_3to0_minload = 4'b0010;
-//
-//      // fifo0_in_load is smallest:
-//      11:
-//	fifo_in_3to0_minload = 4'b0001;
-//      15:
-//	fifo_in_3to0_minload = 4'b0001;
-//      43:
-//	fifo_in_3to0_minload = 4'b0001;
-//      59:
-//	fifo_in_3to0_minload = 4'b0001;
-//      31:
-//	fifo_in_3to0_minload = 4'b0001;
-//      63:
-//	fifo_in_3to0_minload = 4'b0001;
-//      
-//      default:
-//	fifo_in_3to0_minload = 4'b1000; // All counts are in initial order 
-//    endcase
-//
-//    // Find minimin load among load7 thru load4:
-//    case (fifo_in_7to4_load_compared)
-//      // fifo3_in_load is smallest:
-//      0:
-//	fifo_in_7to4_minload = 4'b1000;
-//      4:
-//	fifo_in_7to4_minload = 4'b1000;
-//      6:
-//	fifo_in_7to4_minload = 4'b1000;
-//      3:
-//	fifo_in_7to4_minload = 4'b1000;
-//      7:
-//	fifo_in_7to4_minload = 4'b1000;
-//
-//      // fifo2_in_load is smallest:
-//      56:
-//	fifo_in_7to4_minload = 4'b0100;
-//      48:
-//	fifo_in_7to4_minload = 4'b0100;
-//      57:
-//	fifo_in_7to4_minload = 4'b0100;
-//      41:
-//	fifo_in_7to4_minload = 4'b0100;
-//      32:
-//	fifo_in_7to4_minload = 4'b0100;
-//      33:
-//	fifo_in_7to4_minload = 4'b0100;
-//
-//      // fifo1_in_load is smallest:
-//      30:
-//	fifo_in_7to4_minload = 4'b0010;
-//      62:
-//	fifo_in_7to4_minload = 4'b0010;
-//      22:
-//	fifo_in_7to4_minload = 4'b0010;
-//      20:
-//	fifo_in_7to4_minload = 4'b0010;
-//      60:
-//	fifo_in_7to4_minload = 4'b0010;
-//      52:
-//	fifo_in_7to4_minload = 4'b0010;
-//
-//      // fifo0_in_load is smallest:
-//      11:
-//	fifo_in_7to4_minload = 4'b0001;
-//      15:
-//	fifo_in_7to4_minload = 4'b0001;
-//      43:
-//	fifo_in_7to4_minload = 4'b0001;
-//      59:
-//	fifo_in_7to4_minload = 4'b0001;
-//      31:
-//	fifo_in_7to4_minload = 4'b0001;
-//      63:
-//	fifo_in_7to4_minload = 4'b0001;
-//      
-//      default:
-//	fifo_in_7to4_minload = 4'b1000; // All counts are in initial order 
-//    endcase
-//
-//    case (fifo_in_7to4_minload)
-//      4'b1000:
-//	fifo_in_7to4_lowest_load = fifo7_in_load;
-//      4'b0100:
-//	fifo_in_7to4_lowest_load = fifo6_in_load;
-//      4'b0010:
-//	fifo_in_7to4_lowest_load = fifo5_in_load;
-//      4'b0001:
-//	fifo_in_7to4_lowest_load = fifo4_in_load;
-//
-//      default:
-//	fifo_in_7to4_lowest_load = fifo7_in_load;
-//
-//    endcase
-//
-//    case (fifo_in_3to0_minload)
-//      4'b1000:
-//	fifo_in_3to0_lowest_load = fifo3_in_load;
-//      4'b0100:
-//	fifo_in_3to0_lowest_load = fifo2_in_load;
-//      4'b0010:
-//	fifo_in_3to0_lowest_load = fifo1_in_load;
-//      4'b0001:
-//	fifo_in_3to0_lowest_load = fifo0_in_load;
-//
-//      default:
-//	fifo_in_3to0_lowest_load = fifo3_in_load;
-//
-//    endcase // case (fifo_in_3to0_minload)
-//
-//    // Find minimin load among load7 thru load0:
-//    fifo_in_minload = (fifo_in_7to4_lowest_load >= fifo_in_3to0_lowest_load) ?
-//		      {4'h0, fifo_in_3to0_minload} : // The lowest load is among load3 thru load0
-//		      {fifo_in_7to4_minload, 4'h0};  // The lowest load is among load7 thru load4
-//  end
-
-  
+ 
   // ===================================================================
   // fifox_in wiring:
   // ===================================================================
@@ -4441,8 +3782,6 @@ endgenerate
   assign module_in_metadata[463:448] = 16'b0;
   assign module_in_metadata[447:400] = total_hmac_received_requests_count[47:0];
   assign module_in_metadata[399:96] = 304'b0;
-//  assign module_in_metadata[95:80] = current_fifo_in_steering_tag;
-//  assign module_in_metadata[79:64] = current_fifo_in_message_size;
   assign module_in_metadata[95:80] = input_buffer_meta_rdata[47:32];
   assign module_in_metadata[79:64] = input_buffer_meta_rdata[31:16];
   assign module_in_metadata[63:0] = kbuffer_dout; // kbuffer out is already stable when sampled into module_in_data.
@@ -4471,10 +3810,8 @@ endgenerate
   localparam [3:0]
     CHANNEL_OUT_IDLE        = 4'b0000,
     CHANNEL_OUT_SELECT      = 4'b0001,
-//    CHANNEL_OUT_SELECT2     = 4'b0010,
     CHANNEL_OUT_HEADER      = 4'b0011,
     FIFO_IN_SELECT          = 4'b0100,
-//    FIFO_IN_SELECT2         = 4'b0101,
     FIFO_IN_WRITE_METADATA  = 4'b0110,
     CHANNEL_OUT_PROGRESS    = 4'b0111,
     CHANNEL_AFUBYPASS       = 4'b1000,
@@ -4512,7 +3849,6 @@ endgenerate
       fifo_in_full[7] <= 0;
       message_afubypass_pending <= 1'b0;
       message_afubypass_valid <= 1'b0;
-//      message_data_valid <= 1'b0;
       input_buffer_rden <= 1'b0; // TBD: Power optimization: Consider enabling input buffer read upon need only
       input_buffer_read_latency <= 3'b000;
       current_fifo_in_message_ok <= 1'b0;
@@ -4525,8 +3861,6 @@ endgenerate
       total_hmac_queue1_received_delta <= 33'b0;
       total_hmac_queue1_received_requests <= 48'b0;
       queues_priority_on <= 1'b0;
-//      total_hmac_queue0_dropped_requests <= 48'b0;
-//      total_hmac_queue1_dropped_requests <= 48'b0;
     end
 
     else begin
@@ -4539,8 +3873,6 @@ endgenerate
 	  total_hmac_queue1_received_data <= 64'b0;
 	  total_hmac_queue1_received_delta <= 33'b0;
 	  total_hmac_queue1_received_requests <= 48'b0;
-//	  total_hmac_queue0_dropped_requests <= 48'b0;
-//	  total_hmac_queue1_dropped_requests <= 48'b0;
 	end
 
       if (messages_queue0_high_watermark && messages_queue1_empty || messages_queue1_high_watermark && messages_queue0_empty)
@@ -4565,59 +3897,6 @@ endgenerate
 	    if (message_out_validD)
 	      // There is at least 1 valid message in input buffer
 	      begin
-		// Priority_based selection between queue0 & queue1
-//		if (~hmac_queues_priority_disable)
-//		  begin
-//		    current_out_chid[3:1] <= 3'b0;
-//		    case ({current_out_chid[0], messages_validD[1:0]})
-//
-//		      3'b011:
-//			begin
-//			  // Queue0 has been served.
-//			  // If Queue0 has exceeded its priority limit, then switch to Queue1
-//			  // Otherwise, serve (or wait for more) queue0 packets
-//			  current_out_chid[0] <= (hmac_queue0_weight > hmac_queue1_weight);
-//			end
-//		      
-//		      3'b111:
-//			begin
-//			  // Queue1 has been served.
-//			  // If Queue1 has exceeded its priority limit, switch to Queue0
-//			  // Otherwise, serve (or wait for more) queue1 packets
-//			  current_out_chid[0] <= ~(hmac_queue0_weight <= hmac_queue1_weight);
-//			end
-//
-//		      3'b001,
-//		      3'b101:
-//			begin
-//			  // Keep serving Queue0 until both queues have pending messages 
-//			  current_out_chid[0] <= 1'b0;
-//			end
-//		      
-//		      3'b010,
-//		      3'b110:
-//			begin
-//			  // Keep serving same Queue until both queues have pending messages 
-//			  current_out_chid[0] <= 1'b1;
-//			end	
-//		      
-//		      3'b000,
-//		      3'b100:
-//			begin
-//			  // Impossibe case... can't enter this SM with messages_validD[1:0] == 2'b00 !!
-//			  // No pending messages in either Queue0/1. Switch to default (chid 0)
-//			  current_out_chid[0] <= 1'b0;
-//			end	
-//		      
-//		      default:
-//			begin
-//			  // Default: Queue0
-//			  current_out_chid[0] <= 1'b0;
-//			end
-//		    endcase // case (current_in_chid)
-//		  end
-//
-//		else
 		  // Priority scheme is disabled. Revert to the default (round_robin) channel_selection mode
 		current_out_chid <= next_out_chid[3:0];
 		input_buffer_rden <= 1'b1;
@@ -4627,12 +3906,6 @@ endgenerate
 	    else 
 	      input_buffer_rden <= 1'b0;
 	  end
-	
-//	CHANNEL_OUT_SELECT1:
-	  // This state is required to let the message_out channel selection logic to settle
-//	  begin
-//	    message_out_nstate <= CHANNEL_OUT_SELECT2;
-//	  end
 	
 	CHANNEL_OUT_SELECT:
 	  begin
@@ -4666,13 +3939,6 @@ endgenerate
 	    current_fifo_in_message_metadata <= input_buffer_meta_rdata[47:0];
 
 	    // Sample message size and cmd, depending on the header type in input_buffer_data[]
-//	    if (input_buffer_rdata[515])
-	      // RDMA RC header
-//	      begin
-	    // current_fifo_in_message_size <= input_buffer_meta_rdata[39:24] + input_buffer_rdata[515] ? 'd64 : 'd128; // Adding the header(s) length
-	    //	    current_fifo_in_message_words <= {2'b0, input_buffer_meta_rdata[39:26]} + (input_buffer_meta_rdata[25:24] > 0); // Message size in 32b ticks
-	    //	    current_fifo_in_message_lines <= input_buffer_meta_rdata[39:30] + (input_buffer_meta_rdata[29:24] > 0); // Message size in 512b ticks
-
 	    // hmac: message_size is extracted from the previously saved TUSER.Length
 	    current_fifo_in_steering_tag <= input_buffer_meta_rdata[47:32];
 	    current_out_message_size <= input_buffer_meta_rdata[31:16];
@@ -4684,8 +3950,6 @@ endgenerate
 	    // current_out_head is not incremented following the sample of the header,
 	    // since the message header should also be transferred to the selected zuc module
 	    
-	    // Sample the ZUC command from input message, or override to module_bypass if forced
-	    // current_fifo_in_message_cmd <= module_in_force_modulebypass ? MESSAGE_CMD_MODULEBYPASS : input_buffer_meta_rdata[47:40];
 	    // hmac: cmd is meaningless
 	    current_fifo_in_message_cmd <= 8'h00;
 	    
@@ -4704,23 +3968,6 @@ endgenerate
 	    //      return to the message selection state, and select other message source with probably smaller message size
 	    if (current_fifo_in_message_ok && ~force_afubypass)
 	      begin
-
-		
-		// hmac: fifo_in_full* indication is irrelevant to hmac
-		// full[i] indication is updated upon an attempt to write to fifo_in_id == i,
-		// while other id's full[] unchanged.
-		// TBD: Revisit this 'full' indication scheme:
-		//      Unchanging other id's full[] mean that even though other fifo_in might be read (and thus its data_count is depleted),
-		//      its full[] indication might not be valid anymore, but it is still not updated, until next write to that fifo_in.
-//		fifo_in_full[0] <= (current_fifo_in_id == 0) ? ~fifo_in_free_regD0 : fifo_in_full[0];
-//		fifo_in_full[1] <= (current_fifo_in_id == 1) ? ~fifo_in_free_regD1 : fifo_in_full[1];
-//		fifo_in_full[2] <= (current_fifo_in_id == 2) ? ~fifo_in_free_regD2 : fifo_in_full[2];
-//		fifo_in_full[3] <= (current_fifo_in_id == 3) ? ~fifo_in_free_regD3 : fifo_in_full[3];
-//		fifo_in_full[4] <= (current_fifo_in_id == 4) ? ~fifo_in_free_regD4 : fifo_in_full[4];
-//		fifo_in_full[5] <= (current_fifo_in_id == 5) ? ~fifo_in_free_regD5 : fifo_in_full[5];
-//		fifo_in_full[6] <= (current_fifo_in_id == 6) ? ~fifo_in_free_regD6 : fifo_in_full[6];
-//		fifo_in_full[7] <= (current_fifo_in_id == 7) ? ~fifo_in_free_regD7 : fifo_in_full[7];
-
 		if ((fifo_in_free_regD != 8'h00) &&
 	            ((current_fifo_in_message_cmd == MESSAGE_CMD_CONF) || (current_fifo_in_message_cmd == MESSAGE_CMD_INTEG) ||
 		     (current_fifo_in_message_cmd == MESSAGE_CMD_MODULEBYPASS)))
@@ -4738,7 +3985,6 @@ endgenerate
 		    current_out_hmac_metadata <= 1'b1;
 		    module_in_valid     <= 1'b1;
 
-//		    message_out_nstate <= FIFO_IN_SELECT2;
 		    message_out_nstate <= FIFO_IN_WRITE_METADATA;
 		  end
 		
@@ -4767,28 +4013,6 @@ endgenerate
 	      end
 	  end
 	
-//	FIFO_IN_SELECT2:
-//	  // State merged with FIFO_IN_SELECT1
-//	  begin
-//
-//	    // Sample the variables related to the selected target zuc module
-//	    fifo_in_readyQ  <= fifo_in_readyD;
-//
-//	    // The input_buffer output is already valid with the required read line, once the read address is set
-//	    // The write to fifo_in 1 -> 4 mux is put here (rather than as random logic outside this block) to avoid potential write glitches
-//	    if (current_out_hmac_metadata)
-//	      begin
-//		module_in_valid     <= 1'b1;
-//		message_out_nstate <= FIFO_IN_WRITE_METADATA;
-//	      end
-//	    else
-//	      begin
-////		module_in_valid <= 1'b1;
-////	      	message_data_valid <= 1'b1;
-//		message_out_nstate <= CHANNEL_OUT_PROGRESS;
-//	      end
-//	  end
-	
 	FIFO_IN_WRITE_METADATA:
 	  begin
 	    // Dedicated cycle to write hmac metadata to module_in
@@ -4802,77 +4026,8 @@ endgenerate
 	    current_fifo_in_message_size <= current_fifo_in_message_size - FIFO_LINE_SIZE;
 	    current_fifo_in_message_flits <=  current_fifo_in_message_flits - 10'h001;
 
-//	    message_out_nstate <= FIFO_IN_SELECT2;
 	    message_out_nstate <= CHANNEL_OUT_PROGRESS;
 	  end
-
-//	CHANNEL_OUT_PROGRESS:
-//	  // 2 clocks per write
-//	  // At this point both the message source channel and target zuc module have been selected
-//	  // The input buffer read pointer, current_out_head, still points to the message first line (header)
-//	  // Read from source channel in input buffer to target zuc module, until end of message
-//	  begin
-//	    if (fifo_in_readyQ && message_data_valid)
-//	      // message_data_valid is a toggle flag, to allow two clocks per read_from_input_buffer_and_write_to_fifox_in.
-//	      // TBD: revisit the need for the message_data_valid, to reduce the read/write tpt to 1 clock
-//	      begin
-//		// Even though it is guaranteed by design that there is sufficient space in target fifo (see fifo free space checkes above),
-//		// we still verify the target fifo_in is not full, just in case...  
-//
-//		// Read from chidx_input_buffer and write to target fifo_in.
-//		// The input_buffer output is already valid with the required read line, once the read address is set
-//		// The write to fifo_in 1 -> 4 mux is put here (rather than as random logic outside this block) to avoid potential write glitches
-//
-//		// Once a message read ended, current_out_head pointer should point to start of the next successive message.
-//		// Increment this pointer to point to next line, following the end of current message,
-//		// and update the remaining message size
-//		// The read pointer is incremented modulo channel_buffer size, to wrap around 9th bit
-//		current_fifo_in_header <= 1'b0;
-//		if (current_fifo_in_header && ~current_fifo_in_message_type)
-//		  // If current line is an eth header, attach the message metadata also the subsequent line (message header)
-//		  current_fifo_in_eth_header <= 1'b1;
-//		if (current_fifo_in_eth_header)
-//		  current_fifo_in_eth_header <= 1'b0;
-//		
-//		current_out_head <= (current_out_head & 13'h1e00) | ((current_out_head + 1) & 13'h01ff);
-//		current_out_head_incremented <= 1'b1;
-//		message_data_valid  <= 1'b0;
-//		module_in_valid  <= 1'b0;
-//		
-////		if (current_fifo_in_message_size <= FIFO_LINE_SIZE || input_buffer_rdata[513])
-//		  // 'end_of_message' == Last 64 bytes (or less) have been read
-//		  // end_of_message indication takes into accout the exact message size being read, as specified in current_fifo_in_message_size
-//		  // Anyway, full 512b lines are always read, the message_size alignment.
-//		  // Just in case: Added another termination condition: EOM is set.
-//		  // to cover for a potential length mismatch between *message_size and actual size
-//		if (current_out_last)
-//		  // end of message == EOM indication from input buffer metadata, input_buffer_data[513] 
-//		  // Using the EOM termination condition rather than *message_count, to avoid lines left over in input_buffer,
-//		  // in case the *message_size do not match the actual length.
-//		  begin 
-//		    update_channel_out_regs <= 1'b1;
-//		    update_fifo_in_regs <= 1'b1;
-//		    message_out_nstate <= CHANNEL_OUT_EOM;
-//		  end
-//		else
-//		  begin
-//		    // Keep reading until end of message
-//		    current_fifo_in_message_size <= current_fifo_in_message_size - FIFO_LINE_SIZE;
-//
-//		    // ??? TBD: can we back-to-back read from input buffer, write to fifo_in?
-//		    // If not, then add here a read/write settle state of 1 clock long
-//		    // message_out_nstate <= CHANNEL_OUT_READ-WRITE-SETTLE;
-//		    message_out_nstate <= CHANNEL_OUT_READ;
-//		  end
-//	      end
-//
-//	    else // !(fifo_in_readyQ)
-//	      begin
-//		current_out_head_incremented <= 1'b0;
-//		module_in_valid  <= 1'b1;
-//		message_data_valid <= 1'b1;
-//	      end
-//	  end
 
 	CHANNEL_OUT_PROGRESS:
           // One clock per flit write to fifo_in
@@ -4893,7 +4048,6 @@ endgenerate
 		current_out_head_incremented <= 1'b1;
 		current_fifo_in_message_size <= current_fifo_in_message_size - FIFO_LINE_SIZE;
 		current_fifo_in_message_flits <=  current_fifo_in_message_flits - 10'h001;
-//		timestampQ <= timestamp;
 	      end
 	    else
 	      begin 
@@ -4941,328 +4095,6 @@ endgenerate
 	      end
 	  end
 
-/*
-	CHANNEL_OUT_IDLE:
-	  // channel ID selection is done outside this SM
-	  // Prioritize next channel ID to read from: Look at all chidx_valid bits, and round_robin select next valid channel
-	  //   Reminder: chidx_in_message_count > 0 means that chidx has at least one pending message in input buffer
-	  begin
-	    //// Clearing all signal from end of previous SM round
-	    //current_out_head_incremented <= 1'b0;
-	    //current_fifo_in_header <= 1'b0;
-	    //module_in_valid  <= 0;
-	    //message_afubypass_valid  <= 1'b0;
-	    //message_afubypass_pending <= 1'b0;
-	    //update_channel_out_regs = 1'b0;
-	    //update_fifo_in_regs = 1'b0;
-
-	    // Sampling the current status of message_out_validD
-	    // Keep in mind that messages_validD is continuously updated by the Packet_In SM,
-	    // so it is sampled inorder to priority selection of a temporarily prozen value
-	    if (message_out_validD && (fifo_in_free_regD != 8'h00))
-	      // There is at least 1 valid message in input buffer, at least one module is enabled and its fifo_in is free
-	      // Otherwise, keep waiting here
-	      begin
-		input_buffer_rden <= 1'b1; // Enable reading from input_buffer
-		current_out_head <= current_out_headD;
-		message_out_nstate <= CHANNEL_OUT_SELECT1;
-	      end
-	    else 
-	      input_buffer_rden <= 1'b0;
-	  end
-	
-	CHANNEL_OUT_SELECT1:
-	  // hmac: input_buffer read wait state
-	  // This state is required to let the message_out channel selection logic to settle
-	  begin
-	    //	    current_out_chid <= next_out_chid[3:0]; // MOD 16;
-	  // hmac: chid is irrelevant. Forced to 0 at reset
-	    
-	    current_out_hmac_metadata <= 1'b1;
-//	    input_buffer_read_latency <= 3'b000;
-	    message_out_nstate <= CHANNEL_OUT_HEADER;
-	  end
-	
-//	CHANNEL_OUT_SELECT2:
-//	  begin
-//	    // hmac: THis state cancelled: No need to wait for "reading selected channel arguments", since there are no channels in hmac !!
-//
-//	    // Sample the selected channel arguments
-//
-//	    // hmac: Moved 1 state earlier 
-//	    // current_out_head <= current_out_headD;
-//	    
-//	    // After selecting chid to read a message from, it is time to select the candidate target zuc
-//	    // We cannot select the target zuc along with the message source, since we need the source message size for the zuc selection,
-//	    // and that message size is valid only after selecting the message source
-//	    
-//	    // zuc module selection: Round_robin around all zuc modules, whose fifo_in has sufficient space to host the selected message_size
-//	    // The selection is done ouside this SM, with dedicated logic, and sampled at next state.
-//
-//	    if (input_buffer_read_latency > 0)
-//	      // input_buffer read latency is 1 clock
-//	      message_out_nstate <= CHANNEL_OUT_HEADER;
-//	    else 
-//	      input_buffer_read_latency <= input_buffer_read_latency + 1;
-//	    
-//	  end
-
-	CHANNEL_OUT_HEADER:
-	  begin
-	    // At this point, the current_out_head pointer is already settled, reading the first message line of the selected chid,
-	    // which is the message HEADER.
-	    // Extract message size from header. It is required at next state to select a zuc module,
-	    // and increment out_head to point to first real line of message
-
-	    current_fifo_in_message_ok <= ~(input_buffer_meta_rdata[0] || input_buffer_meta_rdata[1] || input_buffer_meta_rdata[2]);
-	    current_fifo_in_message_type <= input_buffer_rdata[515];
-	    current_fifo_in_message_metadata <= input_buffer_meta_rdata[47:0];
-
-	    // Sample message size and cmd, depending on the header type in input_buffer_data[]
-//	    if (input_buffer_rdata[515])
-	      // RDMA RC header
-//	      begin
-	    // current_fifo_in_message_size <= input_buffer_meta_rdata[39:24] + input_buffer_rdata[515] ? 'd64 : 'd128; // Adding the header(s) length
-	    //	    current_fifo_in_message_words <= {2'b0, input_buffer_meta_rdata[39:26]} + (input_buffer_meta_rdata[25:24] > 0); // Message size in 32b ticks
-	    //	    current_fifo_in_message_lines <= input_buffer_meta_rdata[39:30] + (input_buffer_meta_rdata[29:24] > 0); // Message size in 512b ticks
-
-	    // hmac: message_size is extracted from the previously saved TUSER.Length
-	    current_fifo_in_steering_tag <= input_buffer_meta_rdata[47:32];
-	    current_fifo_in_message_size <= input_buffer_meta_rdata[31:16];
-	    current_fifo_in_message_words <= {2'b0, input_buffer_meta_rdata[31:18]} + (input_buffer_meta_rdata[17:16] > 0); // Message size in 32b ticks
-	    current_fifo_in_message_lines <= input_buffer_meta_rdata[31:22] + (input_buffer_meta_rdata[21:16] > 0); // Message size in 512b ticks
-	    current_fifo_in_message_flits <= input_buffer_meta_rdata[31:22] + (input_buffer_meta_rdata[21:16] > 0); // Message size in 512b ticks
-
-	    // current_out_head is not incremented following the sample of the header,
-	    // since the message header should also be transferred to the selected zuc module
-	    
-	    // Sample the ZUC command from input message, or override to module_bypass if forced
-	    // current_fifo_in_message_cmd <= module_in_force_modulebypass ? MESSAGE_CMD_MODULEBYPASS : input_buffer_meta_rdata[47:40];
-	    // hmac: cmd is meaningless
-	    current_fifo_in_message_cmd <= 8'h00;
-	    
-	    // Merge message metadata (id & status) into either of message header and eth header 
-	    
-	    // Next fifo_in_id is selected based on pending packet size. This logic is outside th SM, so should be stable by now.
-	    current_fifo_in_id <= next_fifo_in_id[2:0]; // MOD 8
-	    fifo_in_readyQ  <= fifo_in_readyD;
-
-	    // Sample timestamp[] 1 clock before it is being written to module_in*, to avoid potential race from the clock tick'ed timestamp[] to the actual module_in write
-	    //	    timestampQ <= timestamp;
-	    message_out_nstate <= FIFO_IN_SELECT1;
-	  end
-
-	FIFO_IN_SELECT1:
-	  begin
-	    // A message is transferred to a certain fifox_in if there is sufficient space to hold the whole message,
-	    // and the message cmd is a valid ZUC command
-	    // ???? Potential optimization, to eliminate the waste wait here:
-	    //      If there is no free zuc to hold the selected message size, then rather than waiting here,
-	    //      return to the message selection state, and select other message source with probably smaller message size
-	    if (current_fifo_in_message_ok && ~force_afubypass)
-	      begin
-		// full[i] indication is updated upon an attempt to write to fifo_in_id == i,
-		// while other id's full[] unchanged.
-		// TBD: Revisit this 'full' indication scheme:
-		//      Unchanging other id's full[] mean that even though other fifo_in might be read (and thus its data_count is depleted),
-		//      its full[] indication might not be valid anymore, but it is still not updated, until next write to that fifo_in.
-		fifo_in_full[0] <= (current_fifo_in_id == 0) ? ~fifo_in_free_regD0 : fifo_in_full[0];
-		fifo_in_full[1] <= (current_fifo_in_id == 1) ? ~fifo_in_free_regD1 : fifo_in_full[1];
-		fifo_in_full[2] <= (current_fifo_in_id == 2) ? ~fifo_in_free_regD2 : fifo_in_full[2];
-		fifo_in_full[3] <= (current_fifo_in_id == 3) ? ~fifo_in_free_regD3 : fifo_in_full[3];
-		fifo_in_full[4] <= (current_fifo_in_id == 4) ? ~fifo_in_free_regD4 : fifo_in_full[4];
-		fifo_in_full[5] <= (current_fifo_in_id == 5) ? ~fifo_in_free_regD5 : fifo_in_full[5];
-		fifo_in_full[6] <= (current_fifo_in_id == 6) ? ~fifo_in_free_regD6 : fifo_in_full[6];
-		fifo_in_full[7] <= (current_fifo_in_id == 7) ? ~fifo_in_free_regD7 : fifo_in_full[7];
-
-		if ((fifo_in_free_regD != 8'h00) &&
-		    // hmac: current_fifo_in_message_cmd is forced to MESSAGE_CMD_CONF
-	            ((current_fifo_in_message_cmd == MESSAGE_CMD_CONF) || (current_fifo_in_message_cmd == MESSAGE_CMD_INTEG) ||
-		     (current_fifo_in_message_cmd == MESSAGE_CMD_MODULEBYPASS)))
-		  // There is a fifox_in with sufficient space to hold the current message, and same fifx_in has more free_space than other fifox_in
-		  // Current message is a valid message to be loaded to fifox_in
-		  // Note: NODULEBYPASS command is handled inside the zuc_module
-		  //
-		  // TBD: Add remaining prerequisites for delivering a message to ZUC modules: 
-		  // AFU_ID, message_size min/max boundaries, ...
-		  begin
-		    // There is at least one zuc module available to accept the selected message
-		    
-		    // The input_buffer output is already valid with the required read line, once the read address is set
-		    // The write to fifo_in 1 -> 4 mux is put here (rather than as random logic outside this block) to avoid potential write glitches
-		    module_in_valid <= 1'b1;
-		    message_data_valid <= 1'b1;
-		    //		    message_out_nstate <= FIFO_IN_SELECT2;
-		    message_out_nstate <= CHANNEL_OUT_PROGRESS;
-		  end
-		
-		else if  (current_fifo_in_message_cmd == MESSAGE_CMD_AFUBYPASS)
-		  // Bypass the whole zuc modules. Transfer the message to sbu2pci 
-		  begin
-		    // Signal to Output Control that there is a message pending for bypass
-		    // message_afubypass_pending indication is kept asserted thru all the bypass process 
-		    // At this point, the current_out_head pointer is already settled, reading the first message line of bypassed message
-		    message_afubypass_pending <= 1'b1;
-		    message_afubypass_valid  <= 1'b1;
-		    message_out_nstate <= CHANNEL_AFUBYPASS;
-		  end
-	      end
-
-	    else
-	      // AFU is bypassed when the message not OK, or an AFU bypass has been forced (afu_ctrl0[19:18] == FORCE_AFU_BYPASS)
-	      // A message is not OK, if either of:
-	      // 1. Unsupported opcode
-	      // 2. Message_size (header[495:480]) do not match actual length
-	      // 3. Message size > 9KB
-	      begin
-		message_afubypass_pending <= 1'b1;
-		message_afubypass_valid  <= 1'b1;
-		message_out_nstate <= CHANNEL_AFUBYPASS;
-	      end
-	  end
-	
-	//	FIFO_IN_SELECT2:
-	// hmac: state merged with FIFO_IN_SELECT1
-	//	  begin
-	//
-	//	    // Sample the variables related to the selected target zuc module
-	//	    fifo_in_readyQ  <= fifo_in_readyD;
-	//
-	//	    // The input_buffer output is already valid with the required read line, once the read address is set
-	//	    // The write to fifo_in 1 -> 4 mux is put here (rather than as random logic outside this block) to avoid potential write glitches
-	//	    module_in_valid     <= 1'b1;
-	////	    if (current_out_hmac_metadata)
-	////	      message_out_nstate <= FIFO_IN_WRITE_METADATA;
-	////	    else
-	////	    begin
-	//	      message_data_valid <= 1'b1;
-	//	      message_out_nstate <= CHANNEL_OUT_PROGRESS;
-	////	    end
-	//	  end
-	
-	//	FIFO_IN_WRITE_METADATA:
-	//	  begin
-	//	    // Dedicated cycle to write hmac metadata to module_in
-	//	    // Writing hma metadata to module_in as the first hmac packet flit
-	//	    module_in_valid     <= 1'b0;
-	//	    current_out_hmac_metadata <= 1'b0;
-	//	    message_out_nstate <= FIFO_IN_SELECT2;
-	//	  end
-
-	
-//	CHANNEL_OUT_PROGRESS:
-//          // Two clocks per flit write to fifo_in
-// 
-// 	  // At this point both the message source channel and target zuc module have been selected
-//	  // The input buffer read pointer, current_out_head, still points to the message first line (header)
-//	  // Read from source channel in input buffer to target zuc module, until end of message
-//	  begin
-//	    if (fifo_in_readyQ && message_data_valid)
-//	      // message_data_valid is a toggle flag, to allow two clocks per read_from_input_buffer_and_write_to_fifox_in.
-//	      // TBD: revisit the need for the message_data_valid, to reduce the read/write tpt to 1 clock
-//	      begin
-//		// Even though it is guaranteed by design that there is sufficient space in target fifo (see fifo free space checkes above),
-//		// we still verify the target fifo_in is not full, just in case...  
-//
-//		// Read from chidx_input_buffer and write to target fifo_in.
-//		// The input_buffer output is already valid with the required read line, once the read address is set
-//		// The write to fifo_in 1 -> 4 mux is put here (rather than as random logic outside this block) to avoid potential write glitches
-//
-//		// Once a message read ended, current_out_head pointer should point to start of the next successive message.
-//		// Increment this pointer to point to next line, following the end of current message,
-//		// and update the remaining message size
-//		// The read pointer is incremented modulo channel_buffer size, to wrap around 9th bit
-//		current_out_head_incremented <= 1'b0;
-//		current_fifo_in_header <= 1'b0;
-//		current_out_hmac_metadata <= 1'b0;
-//		if (current_fifo_in_header && ~current_fifo_in_message_type)
-//		  // If current line is an eth header, attach the message metadata also the subsequent line (message header)
-//		  current_fifo_in_eth_header <= 1'b1;
-//		if (current_fifo_in_eth_header)
-//		  current_fifo_in_eth_header <= 1'b0;
-//		
-//		message_data_valid  <= 1'b0;
-//		module_in_valid  <= 1'b0;
-//		
-////		if (current_fifo_in_message_size <= FIFO_LINE_SIZE || input_buffer_rdata[513])
-//		  // 'end_of_message' == Last 64 bytes (or less) have been read
-//		  // end_of_message indication takes into accout the exact message size being read, as specified in current_fifo_in_message_size
-//		  // Anyway, full 512b lines are always read, the message_size alignment.
-//		  // Just in case: Added another termination condition: EOM is set.
-//		  // to cover for a potential length mismatch between *message_size and actual size
-//		if (current_out_last)
-//		  // end of message == EOM indication from input buffer metadata, input_buffer_data[513] 
-//		  // Using the EOM termination condition rather than *message_count, to avoid lines left over in input_buffer,
-//		  // in case the *message_size do not match the actual length.
-//		  begin 
-//		    update_channel_out_regs <= 1'b1;
-//		    update_fifo_in_regs <= 1'b1;
-//		    // hmac: Shortening the SM states round latency:
-//		    // cancelled EOM state and moved the following cleared signals to the appropriate states
-//		    message_out_nstate <= CHANNEL_OUT_EOM;
-////		    current_out_head_incremented <= 1'b0;
-////		    current_fifo_in_header <= 1'b0;
-////		    module_in_valid  <= 0;
-////		    message_afubypass_valid  <= 1'b0;
-////		    message_afubypass_pending <= 1'b0;
-////		    update_channel_out_regs = 1'b0;
-////		    update_fifo_in_regs = 1'b0;
-//		    // message_out_nstate <= CHANNEL_OUT_IDLE;
-//		  end
-//		else
-//		  begin
-//		    // Keep reading until end of message
-//		    current_fifo_in_message_size <= current_fifo_in_message_size - FIFO_LINE_SIZE;
-//		    // Sample timestamp[] towards next module_in* write
-//		    timestampQ <= timestamp;
-//
-//		    // ??? TBD: can we back-to-back read from input buffer, write to fifo_in?
-//		    // If not, then add here a read/write settle state of 1 clock long
-//		    // message_out_nstate <= CHANNEL_OUT_READ-WRITE-SETTLE;
-////		    message_out_nstate <= CHANNEL_OUT_READ;
-//		  end
-//	      end
-//
-//	    else // !(fifo_in_readyQ)
-//	      begin
-//		current_out_head <= (current_out_head & 13'h1e00) | ((current_out_head + 1) & 13'h01ff);
-//		current_out_head_incremented <= 1'b1;
-//		module_in_valid  <= 1'b1;
-//		message_data_valid <= 1'b1;
-//	      end
-//	  end
-	
-	CHANNEL_OUT_PROGRESS:
-          // One clock per flit write to fifo_in
-	  // This option assumes:
-	  // 1. current_fifo_in_message_flits already updated with the current packet size (in flits) to be transferred
-	  // 2. The target fifo_in free space aleady verified to host the complete transferred packet
-	  //    So that fifo_in_ready is not checked during this flow !!!
-
-	  begin
-	    current_fifo_in_header <= 1'b0;
-	    current_out_hmac_metadata <= 1'b0;
-
-	    if (current_fifo_in_message_flits > 10'h000)
-	      // Still more flits to read from input_buffer and to be written to fifo_in
-	      begin
-		module_in_valid  <= 1'b1;
-		current_out_head <= (current_out_head & 13'h1e00) | ((current_out_head + 1) & 13'h01ff);
-		current_out_head_incremented <= 1'b1;
-		current_fifo_in_message_size <= current_fifo_in_message_size - FIFO_LINE_SIZE;
-		current_fifo_in_message_flits <=  current_fifo_in_message_flits - 10'h001;
-//		timestampQ <= timestamp;
-	      end
-	    else
-	      begin 
-		update_channel_out_regs <= 1'b1;
-		module_in_valid  <= 1'b0;
-		update_fifo_in_regs <= 1'b1;
-		current_out_head_incremented <= 1'b0;
-		message_out_nstate <= CHANNEL_OUT_EOM;
-	      end
-	  end
-*/	
 	CHANNEL_AFUBYPASS:
 	  // Bypass the selected channel to sbu2pci
 	  begin
@@ -5278,11 +4110,6 @@ endgenerate
 		// wait at least 1 clock, before incrementing head pointer
 		message_afubypass_valid  <= 1'b0;
 
-//		if (current_fifo_in_message_size <= FIFO_LINE_SIZE)
-		  // 'end_of_message' == Last 64 bytes (or less) have been read
-		  // end_of_message indication takes into accout the exact message size being read, as specified in current_fifo_in_message_size
-		  // Anyway, full 512b lines are always read, the message_size alignment
-
 		if (current_out_last)
 		  // To end the bypass, we rely on EOM indication rather than on current_fifo_in_message_size,
 		  // since the *size parameter extracted from the message header might not match the actual mesasge size.
@@ -5293,22 +4120,12 @@ endgenerate
 		    // hmac: Shortening the SM states round latency:
 		    // cancelled EOM state and moved the following cleared signals to the appropriate states
 		    message_out_nstate <= CHANNEL_OUT_EOM;
-//		    current_out_head_incremented <= 1'b0;
-//		    current_fifo_in_header <= 1'b0;
-//		    module_in_valid  <= 0;
-//		    message_afubypass_valid  <= 1'b0;
-//		    message_afubypass_pending <= 1'b0;
-//		    update_channel_out_regs = 1'b0;
-//		    update_fifo_in_regs = 1'b0;
-		    // message_out_nstate <= CHANNEL_OUT_IDLE;
 		  end
 		else
 		  begin
 		    // Keep bypassing until end of message
 		    // The read pointer is incremented modulo channel_buffer size, to wrap around 9th bit
 		    current_fifo_in_message_size <= current_fifo_in_message_size - FIFO_LINE_SIZE;
-		    // 1 cycle read latency:
-//		    message_out_nstate <= CHANNEL_OUT_READ;
 		  end
 	      end
 	    else
@@ -5349,14 +4166,6 @@ endgenerate
 		// hmac: Shortening the SM states round latency:
 		// cancelled EOM state and moved the following cleared signals to the appropriate states
 		 message_out_nstate <= CHANNEL_OUT_EOM;
-//		    current_out_head_incremented <= 1'b0;
-//		    current_fifo_in_header <= 1'b0;
-//		    module_in_valid  <= 0;
-//		    message_afubypass_valid  <= 1'b0;
-//		    message_afubypass_pending <= 1'b0;
-//		    update_channel_out_regs = 1'b0;
-//		    update_fifo_in_regs = 1'b0;
-		//    message_out_nstate <= CHANNEL_OUT_IDLE;
 	      end
 	    else
 	      begin
@@ -5479,19 +4288,13 @@ endgenerate
 
   
   wire [63:0] zuc_out_keep;
-//  assign zuc_out_keep = module_in_test_mode && (current_fifo_out_message_size > 0) ? FULL_LINE_KEEP :
-//			(current_fifo_out_message_size >= FIFO_LINE_SIZE) ? FULL_LINE_KEEP : 
-//			128'hffffffffffffffff0000000000000000 >> current_fifo_out_message_size[5:0];
   assign zuc_out_keep = (current_fifo_out_message_size >= FIFO_LINE_SIZE) ? FULL_LINE_KEEP : 
 			128'hffffffffffffffff0000000000000000 >> current_fifo_out_message_size[5:0];
 
-//  assign sbu2pci_last = sbu2pci_afubypass_inprogress ? message_afubypass_last : fifo_out_lastD;
   assign sbu2pci_last = fifo_out_lastD;
 
   // fifox_out & input_buffer_bypass to sbu2pci wiring:
   // tkeep is forced to full line in AFUBYPASS
-  //  assign sbu2pci_axi4stream_tkeep[63:0] = sbu2pci_afubypass_inprogress ? FULL_LINE_KEEP
-  // ((current_response_cmd == MESSAGE_CMD_INTEG) && sbu2pci_last) ? MAC_RESPONSE_KEEP : zuc_out_keep;
   // hmac module test mode: full lines are written
   assign sbu2pci_axi4stream_tkeep[63:0] = (hmac_test_mode == 3'b100) ? FULL_LINE_KEEP : zuc_out_keep;
 
@@ -5499,22 +4302,8 @@ endgenerate
   // hmac: Adding tuser.chnnel_id to sbu2pci: If enabed (in afu_ctrl0[29]), toggle channel_id between successive sbu2pci transactions. See sbu2pci_out SM.
   assign sbu2pci_axi4stream_tuser[71:0] = {current_response_tuser, 55'b0, sbu2pci_channel_id_enable && sbu2pci_channel_id};
 
-//  assign sbu2pci_axi4stream_tdata = sbu2pci_afubypass_inprogress ? message_afubypass_data[511:0] : 
-//
-//				    // Ethernet header: Swap Eth/IP/UDP addresses
-//				    sbu2pci_ethernet_header_write ? sbu2pci_ethernet_header : 
-//
-//				    // Clear reserved part in imessage header:
-//				    ~module_in_test_mode && ~afu_ctrl2[16] && sbu2pci_imessage_header_write ? {fifo_out_dataD[511:416], 256'b0, fifo_out_dataD[159////////////:128], 128'b0} :
-//
-//				    // Clear reserved part in cmessage header:
-//				    ~module_in_test_mode && ~afu_ctrl2[16] && sbu2pci_cmessage_header_write ? {fifo_out_dataD[511:416], 416'b0} :
-//
-//				    // Next full lines of a message:
-//				    fifo_out_dataD[511:0];
   assign sbu2pci_axi4stream_tdata = fifo_out_dataD[511:0];
 
-//  assign sbu2pci_axi4stream_vld = sbu2pci_afubypass_inprogress ? message_afubypass_valid : sbu2pci_valid;
   assign sbu2pci_axi4stream_vld = sbu2pci_valid;
   assign sbu2pci_axi4stream_tlast = sbu2pci_last;
 
@@ -5532,7 +4321,6 @@ endgenerate
   // 2. fifox_out_last_message_id is the last written (to sbu2pci) message ID for channel x 
   assign fifo0_out_chid = fifo_out_status[0][7:4];
   assign fifo0_out_message_id = fifo_out_data[0][19:8];
-//  assign fifo0_out_ignored_message_id = fifo_out_data[0][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo0_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo0_out_chid) & 16'h0001) == 16'h0001) || fifo0_out_message_id == 0) ? 1'b0 : 1'b1;
 
   // Calculating the next expected message_id:
@@ -5550,7 +4338,6 @@ endgenerate
 
   assign fifo1_out_chid = fifo_out_status[1][7:4];
   assign fifo1_out_message_id = fifo_out_data[1][19:8];
-//  assign fifo1_out_ignored_message_id = fifo_out_data[1][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo1_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo1_out_chid) & 16'h0001) == 16'h0001) || fifo1_out_message_id == 0) ? 1'b0 : 1'b1;
   assign fifo1_out_expected_message_id = (fifo1_out_last_message_id[11:0] == 12'hfff) ? 12'h001 : fifo1_out_last_message_id[11:0] + 1;
   assign fifo1_out_message_id_ok = (fifo1_out_last_message_id[15]) ? (fifo1_out_message_id == fifo1_out_expected_message_id) : 1'b1;
@@ -5558,7 +4345,6 @@ endgenerate
 
   assign fifo2_out_chid = fifo_out_status[2][7:4];
   assign fifo2_out_message_id = fifo_out_data[2][19:8];
-//  assign fifo2_out_ignored_message_id = fifo_out_data[2][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo2_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo2_out_chid) & 16'h0001) == 16'h0001) || fifo2_out_message_id == 0) ? 1'b0 : 1'b1;
   assign fifo2_out_expected_message_id = (fifo2_out_last_message_id[11:0] == 12'hfff) ? 12'h001 : fifo2_out_last_message_id[11:0] + 1;
   assign fifo2_out_message_id_ok = (fifo2_out_last_message_id[15]) ? (fifo2_out_message_id == fifo2_out_expected_message_id) : 1'b1;
@@ -5566,7 +4352,6 @@ endgenerate
 
   assign fifo3_out_chid = fifo_out_status[3][7:4];
   assign fifo3_out_message_id = fifo_out_data[3][19:8];
-//  assign fifo3_out_ignored_message_id = fifo_out_data[3][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo3_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo3_out_chid) & 16'h0001) == 16'h0001) || fifo3_out_message_id == 0) ? 1'b0 : 1'b1;
   assign fifo3_out_expected_message_id = (fifo3_out_last_message_id[11:0] == 12'hfff) ? 12'h001 : fifo3_out_last_message_id[11:0] + 1;
   assign fifo3_out_message_id_ok = (fifo3_out_last_message_id[15]) ? (fifo3_out_message_id == fifo3_out_expected_message_id) : 1'b1;
@@ -5574,7 +4359,6 @@ endgenerate
 
   assign fifo4_out_chid = fifo_out_status[4][7:4];
   assign fifo4_out_message_id = fifo_out_data[4][19:8];
-//  assign fifo4_out_ignored_message_id = fifo_out_data[4][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo4_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo4_out_chid) & 16'h0001) == 16'h0001) || fifo4_out_message_id == 0) ? 1'b0 : 1'b1;
   assign fifo4_out_expected_message_id = (fifo4_out_last_message_id[11:0] == 12'hfff) ? 12'h001 : fifo4_out_last_message_id[11:0] + 1;
   assign fifo4_out_message_id_ok = (fifo4_out_last_message_id[15]) ? (fifo4_out_message_id == fifo4_out_expected_message_id) : 1'b1;
@@ -5582,7 +4366,6 @@ endgenerate
 
   assign fifo5_out_chid = fifo_out_status[5][7:4];
   assign fifo5_out_message_id = fifo_out_data[5][19:8];
-//  assign fifo5_out_ignored_message_id = fifo_out_data[5][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo5_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo5_out_chid) & 16'h0001) == 16'h0001) || fifo5_out_message_id == 0) ? 1'b0 : 1'b1;
   assign fifo5_out_expected_message_id = (fifo5_out_last_message_id[11:0] == 12'hfff) ? 12'h001 : fifo5_out_last_message_id[11:0] + 1;
   assign fifo5_out_message_id_ok = (fifo5_out_last_message_id[15]) ? (fifo5_out_message_id == fifo5_out_expected_message_id) : 1'b1;
@@ -5590,7 +4373,6 @@ endgenerate
 
   assign fifo6_out_chid = fifo_out_status[6][7:4];
   assign fifo6_out_message_id = fifo_out_data[6][19:8];
-//  assign fifo6_out_ignored_message_id = fifo_out_data[6][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo6_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo6_out_chid) & 16'h0001) == 16'h0001) || fifo6_out_message_id == 0) ? 1'b0 : 1'b1;
   assign fifo6_out_expected_message_id = (fifo6_out_last_message_id[11:0] == 12'hfff) ? 12'h001 : fifo6_out_last_message_id[11:0] + 1;
   assign fifo6_out_message_id_ok = (fifo6_out_last_message_id[15]) ? (fifo6_out_message_id == fifo6_out_expected_message_id) : 1'b1;
@@ -5598,7 +4380,6 @@ endgenerate
 
   assign fifo7_out_chid = fifo_out_status[7][7:4];
   assign fifo7_out_message_id = fifo_out_data[7][19:8];
-//  assign fifo7_out_ignored_message_id = fifo_out_data[7][19:8] > 0 ? 1'b1 : 1'b0;
   assign fifo7_out_ignored_message_id = ((((afu_ctrl2[15:0] >> fifo7_out_chid) & 16'h0001) == 16'h0001) || fifo7_out_message_id == 0) ? 1'b0 : 1'b1;
   assign fifo7_out_expected_message_id = (fifo7_out_last_message_id[11:0] == 12'hfff) ? 12'h001 : fifo7_out_last_message_id[11:0] + 1;
   assign fifo7_out_message_id_ok = (fifo7_out_last_message_id[15]) ? (fifo7_out_message_id == fifo7_out_expected_message_id) : 1'b1;
@@ -5663,7 +4444,6 @@ endgenerate
   // A zuc output fifo is candidate for being selected only if hosts at least one full message.
   localparam [2:0]
     SBU2PCI_OUT_IDLE        = 3'b000,
-//    SBU2PCI_OUT_SELECT1     = 3'b001,
     SBU2PCI_OUT_SELECT2     = 3'b010,
     SBU2PCI_OUT_HEADER      = 3'b011,
     SBU2PCI_OUT_NEXT_FLIT   = 3'b100,
@@ -5733,7 +4513,6 @@ endgenerate
 
 		else
 		  begin		
-//		    sbu2pci_out_nstate <= SBU2PCI_OUT_SELECT1;
 		    current_fifo_out_id <= next_fifo_out_id;
 		    
 		    
@@ -5746,78 +4525,8 @@ endgenerate
 	      end
 	  end
 
-//	SBU2PCI_OUT_SELECT1:
-//	  begin
-//	    // hmac: this state is merged with IDLE
-//	    current_fifo_out_id <= next_fifo_out_id;
-//
-//	    // First line to module is the hmac metadata
-//	    // The key is previously read is already from keys_buffer
-//	    // module_in_metadata[63:0] = hmac key
-//	    // module_in_metadata[79:64] = packet length (TUSER.Length)
-//	    // module_in_metadata[95:80] = Steering Tag (TUSER.steering_tag)
-//	    current_fifo_out_message_size <= fifo_out_dataD[79:64]; // Message size in bytes. NOT including the metadata line !!
-//	    current_response_tuser <= fifo_out_dataD[95:80]; // Steering tag
-//
-//	    // Drop the  metadata line
-//	    // In hmac_module_test_mode, the metadata line is NOT dropped, but rather written to sbu2pci
-//	    module_out_ready <= (hmac_test_mode == 3'b100) ? 1'b0 : 1'b1;
-//
-//	    sbu2pci_out_nstate <= SBU2PCI_OUT_SELECT2;
-//	  end
-	
 	SBU2PCI_OUT_SELECT2:
 	  begin
-	    // When modules bypass is forced, the actual response command, is overridden
-//	    current_response_cmd <= module_in_force_modulebypass ? MESSAGE_CMD_MODULEBYPASS : fifo_out_dataD[47:40];
-//	    current_out_zuccmd <= module_in_force_modulebypass ? 1'b0 : (fifo_out_dataD[47:40] == MESSAGE_CMD_CONF) || (fifo_out_dataD[47:40] == MESSAGE_CMD_INTEG);
-//	    current_out_zuccmd <= (fifo_out_dataD[47:40] == MESSAGE_CMD_CONF) || (fifo_out_dataD[47:40] == MESSAGE_CMD_INTEG);
-
-//	    current_fifo_out_message_type <= fifo_out_userD;
-//	    current_response_tuser <= fifo_out_dataD[59:48];
-
-	    // Adding the message/eth headers and module_test_mode flits length to the response message_size
-//	    current_fifo_out_message_size <= ((fifo_out_dataD[47:40] == MESSAGE_CMD_INTEG) ? 
-//					      16'h0040 :                                   // Integ response length is a single flit
-//					      fifo_out_dataD[39:24] + 16'h0040) +          // CONF response length
-//					     (fifo_out_userD ? 16'h0000 : 16'h0040 ) +     // Ethernet header length
-//					     (module_in_test_mode ? 16'h0100 : 16'h0000 ); // Module test_mode extra flits
-//
-					     
-	    // Ethernet header: Calculating ip & udp leangths:
-	    // ===============================================
-	    // INTEG - 2 512b lines: First line is the eth header. Length is 64 - 14 (ETh header) = 50 bytes
-            //                       Second line is the MAC response, whose length is fixed at 48 bytes.
-	    //                       ip header length: 50+48 = 98 = 'h62.
-	    // CONF - Multiple 512b lines: first line length is the eth header. Length is 64 - 14 (ETh header) = 50 bytes
-            //                       Second line is the message response header: 64 bytes
-            //                       Remaining lines length is the same as the original message length
-	    //                       ip header length: 50+64+message_length = 'h72 + message_length
-	    // module_test_mode:      4 full lines are added: 64B x 4 = 256 = 'h100
-// hmac: ip header is ot changed in the forwarded messages
-//	    ip_header_length <= ((fifo_out_dataD[47:40] == MESSAGE_CMD_INTEG) ? 16'h0062 : (fifo_out_dataD[39:24] + 16'h0072)) +
-//				(module_in_test_mode ? 16'h0100 : 16'h0000);
-
-	    // INTEG - 2 512b lines: First line is the eth header. Length is 64 - 34 (eth & ip headers) = 30 bytes
-            //                       Second line is the MAC response, whose length is fixed at 48 bytes.
-	    //                       udp header length: 30+48 = 78 = 'h4e.
-	    // CONF - Multiple 512b lines: first line length is 64 - 34 (eth & ip headers) = 30 bytes
-            //                       Second line is the message response header: 64 bytes
-            //                       Remaining lines length is the same as the original message length
-	    //                       udp header length: 30+64+message_length = 'h5e + message_length
-
-	    // module_test_mode:      4 full lines are added: 64B x 4 = 256 = 'h100
-//	    udp_header_length <= ((fifo_out_dataD[47:40] == MESSAGE_CMD_INTEG) ? 16'h004e : (fifo_out_dataD[39:24] + 16'h005e)) +
-//				 (module_in_test_mode ? 16'h0100 : 16'h0000);
-//
-//	    current_fifo_out_message_id <= fifo_out_dataD[19:8];
-//	    current_fifo_out_chid <= fifo_out_statusD[7:4];   // TBD: Drop status line from fifox_out_status fifo after reading...
-//	    current_fifo_out_status <= fifo_out_statusD[3:0]; // TBD: Add this to sbu2pci_axi4stream_tdata header line
-
-	    // First line from the selected fifo_out is the hmac metadata.
-	    // Capture the packet size and tuser
-	    // fifo_out_data[79:64] = packet length (== received TUSER.Length)
-	    // fifo_out_data[95:80] = Steering Tag (== received TUSER.steering_tag)
 	    current_fifo_out_message_size <= fifo_out_dataD[79:64]; // Message size in bytes. NOT including the metadata line !!
 	    current_response_tuser <= fifo_out_dataD[95:80]; // Steering tag
 	    
@@ -5840,30 +4549,6 @@ endgenerate
 	    hist_sbu2pci_response_event_size <= (current_response_cmd == MESSAGE_CMD_INTEG) ? 0 : current_fifo_out_message_size - 64; 
 	    hist_sbu2pci_response_event_chid <= current_fifo_out_chid;
 
-//	    sbu2pci_valid <= 1'b1;
-	    // Sample the Ethernet header
-
-
-	    // hmac: forwarded message is same as received message. No ETH_addresses flip
-//	    if (~current_fifo_out_message_type)
-//	      begin
-//		sbu2pci_ethernet_header_write <= 1'b1;
-//		sbu2pci_ethernet_header <= {fifo_out_dataD[`ETH_SRC], fifo_out_dataD[`ETH_DST], // Swapped eth src/dst
-//					    fifo_out_dataD[`ETH_TYPE],                          // unchanged
-//					    fifo_out_dataD[`IP_VERSION],                        // unchaned
-//					    ip_header_length,    		                // Updated ip length
-//					    fifo_out_dataD[`IP_FLAGS],                          // unchaned
-//					    16'h0000,                                           // Cleared ip chekcksum (not calculated)
-//					    fifo_out_dataD[`IP_SRC], fifo_out_dataD[`IP_DST],   // Swapped ip src/dst
-//					    fifo_out_dataD[`UDP_SRC], fifo_out_dataD[`UDP_DST], // Swapped udp src/dst
-//					    udp_header_length,					// Updated udp length
-//					    16'h0000,                                           // Cleared udp chekcksum (not calculated)
-//					    fifo_out_dataD[`HEADER_TAIL],                       // unchaned header part
-//		                            afu_ctrl2[16] ? fifo_out_dataD[`HEADER_METADATA] : 60'b0}; // Optional header metadata
-//	      end
-
-	    
-//	    if (sbu2pci_axi4stream_rdy && sbu2pci_valid)
 	    if (sbu2pci_axi4stream_rdy)
 	      // Wait here as long as sbu2pci did not capture this line
 	      begin
@@ -5872,48 +4557,9 @@ endgenerate
 		module_out_ready  <= 1'b1;
 		module_out_status_ready <= 1'b1;
 
-		// hmac: Ethernet only esages
-		// A flit is being written. Lets verify what flit it is:
-//		if (current_fifo_out_message_type) // RDMA RC response
-//		  begin
-//		    if (current_response_cmd == MESSAGE_CMD_INTEG)
-//		      begin
-//			if (~module_in_test_mode)
-//			  // Non Module test mode: Writing a single flit RDMA RC Integrity response
-//			  begin
-//			    sbu2pci_imessage_header_write <= 1'b1;
-//			    update_fifo_out_regs = 1'b1;
-//			    total_hmac_forwarded_requests_count <= total_hmac_forwarded_requests_count + 1;
-//			    hist_sbu2pci_response_event <= 1'b1;
-//			    sbu2pci_out_nstate <= SBU2PCI_OUT_EOM;
-//			  end
-//			else
-//			  // Module test mode: RDMA RC Integrity response includes muliple flits
-//			  begin
-//			    sbu2pci_out_nstate <= SBU2PCI_OUT_NEXT_FLIT;
-//			  end
-//		      end
-//		    
-//		    else if (current_response_cmd == MESSAGE_CMD_CONF)
-//		      begin
-//			// Confidentiality message response
-//			sbu2pci_cmessage_header_write <= 1'b1;
-//			sbu2pci_out_nstate <= SBU2PCI_OUT_NEXT_FLIT;
-//		      end
-//		    else
-//		      begin
-//			// ModuleBypass response
-//			sbu2pci_out_nstate <= SBU2PCI_OUT_NEXT_FLIT;
-//		      end
-//
-//		  end // if (current_fifo_out_message_type)
-//		else
-//		  // Written flit: Ethernet response header
-//		  // Next flit write is the header of either Confidentiality or Integrity response
-//		  begin
+		// hmac: Ethernet only messages
 		sbu2pci_next_write_is_message_header <= 1'b1;
 		sbu2pci_out_nstate <= SBU2PCI_OUT_NEXT_FLIT;
-//		  end
 	      end
 	    else
 	      // An attempt to write to sbu2pci is done here, while sbu2pci is not ready, pushback...
@@ -5988,7 +4634,6 @@ endgenerate
 		sbu2pci_valid <= 1'b1;
 		sbu2pci_pushback <= 1'b0;
 		sbu2pci_out_nstate <= SBU2PCI_OUT_NEXT_FLIT;
-//		  end
 	      end // if (sbu2pci_axi4stream_rdy)
 	    
 	    else
@@ -6010,10 +4655,6 @@ endgenerate
 	    if (sbu2pci_axi4stream_rdy & message_afubypass_valid)
 	      begin
 		// sbu2pci data, keep, last are handled by external logic 		
-//		if (current_fifo_out_message_size <= FIFO_LINE_SIZE)
-		  // 'end_of_message' == Last 64 bytes (or less) have been read
-		  // Last message line have been written to sbu2pci
-		  // sch2pci_tlast/tkeep are asserted by separate logic
 		if (message_afubypass_last)
 		  // To end the bypass, we rely on EOM indication rather than on *message_size, since the *size might not match the actual size
 		  begin
@@ -7016,13 +5657,6 @@ assign total_modules_drop_count = modules_7_0_drop_s + {modules_7_0_drop_c[31:1]
 			      
 			      // hmac: eth header is fully stored. No masking !!! 
 			      // Message header:
-//			      {current_in_pkt_type, 1'b0, current_in_eom & pci2sbu_axi4stream_tlast, current_in_som, // metadata
-//			       pci2sbu_axi4stream_tdata[511:160],
-//			       100'b0, // reserved
-//                               pci2sbu_axi4stream_tuser[67:56],
-//
-//                               // [47:0]: Place holder for message metadata. See input_buffer_meta_wdata[]
-//			       48'b0};
 			      {current_in_pkt_type, 1'b0, current_in_eom & pci2sbu_axi4stream_tlast, current_in_som,
 			       pci2sbu_axi4stream_tdata[511:0]};
   
@@ -7051,22 +5685,6 @@ blk_mem_SimpleDP_8Kx512b zuc_input_buffer_data (
   .addrb(input_buffer_radrs),              // input wire [12 : 0] addrb
   .doutb(input_buffer_rd)                  // output wire [515 : 0] doutb
   );
-
-// per channel, Ethernet header buffering
-// 64 entries per channel
-// When specific buffer is full, write to main inout_buffer_data is also stalled
-//blk_mem_eth_header_1Kx336b zuc_input_buffer_eth_header (
-//   .clka(clk),                             // input wire clka
-//   .ena(input_buffer_wren),                // input wire ena
-//   .wea(input_buffer_eth_write),           // input wire [0 : 0] wea
-//   .addra(input_buffer_eth_wadrs),         // input wire [9 : 0] addra
-//   .dina(input_buffer_eth_wdata),          // input wire [335 : 0] dina
-//   .clkb(clk),                             // input wire clkb
-//   .enb(input_buffer_rden),                // input wire enb
-//   .addrb(input_buffer_eth_radrs),         // input wire [9 : 0] addrb
-//   .doutb(input_buffer_eth_rdata)          // output wire [335 : 0] doutb
-//   );
-
 
 // AFU input buffer metadata, 8K x 48b (11 x 36Kb BRAMs):
 // Writing: All writes to input_buffer_data are also written here, using same wadrs and write signals.
@@ -7153,95 +5771,6 @@ generate
 
 
 endgenerate
-
-
-
-//===================================================================================================================================
-// Histogram: pci2sbu_packets_size
-//===================================================================================================================================
-//
-//  zuc_histo zuc_hist_pci2sbu_packet_size
-//    (
-//     .hist_clk(clk),
-//     .hist_reset(reset || afu_reset),
-//     .hist_id(HIST_ARRAY_PCI2SBU_PACKETS),               // Input: Histogram Instance ID (identifier)
-//     .hist_enable(hist_pci2sbu_packet_enable),           // Input: Histogram enable
-//     .hist_event(hist_pci2sbu_packet_event),             // Input: An event to be captured
-//     .hist_event_chid(hist_pci2sbu_packet_event_chid),   // Input: Event associated chid
-//     .hist_event_value(hist_pci2sbu_packet_event_size),  // Input: Event associated weight (i.e: packet size)
-//     .hist_clear(hist_clear),                            // Input: Clear operation trigger
-//     .hist_clear_op(hist_clear_op),                      // Input: Clear opcode
-//     .hist_clear_chid(hist_clear_chid),                  // Input: Clear associated chid
-//     .hist_clear_array(hist_clear_array),                // Input: Clear associated histogram ID 
-//     .hist_adrs(axi_raddr[9:2]),                         // Input: Histogram read address[7:0]: {chid[3:0], bucket_num[3:0]}
-//     .hist_dout(hist_pci2sbu_packet_dout)                // Output: Histogram read data[31:0]
-//     );
-
-
-//===================================================================================================================================
-// Histogram: pci2sbu_EOMpackets_size
-//===================================================================================================================================
-//
-//  zuc_histo zuc_hist_pci2sbu_eompacket_size
-//    (
-//     .hist_clk(clk),
-//     .hist_reset(reset || afu_reset),
-//     .hist_id(HIST_ARRAY_PCI2SBU_EOMPACKETS),            // Input: Histogram Instance ID (identifier)
-//     .hist_enable(hist_pci2sbu_eompacket_enable),        // Input: Histogram enable
-//     .hist_event(hist_pci2sbu_eompacket_event),          // Input: An event to be captured
-//     .hist_event_chid(hist_pci2sbu_eompacket_event_chid),// Input: Event associated chid
-//     .hist_event_value(hist_pci2sbu_eompacket_event_size),// Input: Event associated weight (i.e: packet size)
-//     .hist_clear(hist_clear),                            // Input: Clear operation trigger
-//     .hist_clear_op(hist_clear_op),                      // Input: Clear opcode
-//     .hist_clear_chid(hist_clear_chid),                  // Input: Clear associated chid
-//     .hist_clear_array(hist_clear_array),                // Input: Clear associated histogram ID 
-//     .hist_adrs(axi_raddr[9:2]),                         // Input: Histogram read address[7:0]: {chid[3:0], bucket_num[3:0]}
-//     .hist_dout(hist_pci2sbu_eompacket_dout)             // Output: Histogram read data[31:0]
-//     );
-
-
-//===================================================================================================================================
-// Histogram pci2sbu_messages_size
-//===================================================================================================================================
-//
-//  zuc_histo zuc_hist_pci2sbu_message_size
-//    (
-//     .hist_clk(clk),
-//     .hist_reset(reset || afu_reset),
-//     .hist_id(HIST_ARRAY_PCI2SBU_MESSAGES),              // Input: Histogram Instance ID (identifier)
-//     .hist_enable(hist_pci2sbu_message_enable),          // Input: Histogram enable
-//     .hist_event(hist_pci2sbu_message_event),            // Input: An event to be captured
-//     .hist_event_chid(hist_pci2sbu_message_event_chid),  // Input: Event associated chid
-//     .hist_event_value(hist_pci2sbu_message_event_size), // Input: Event associated weight (i.e: packet size)
-//     .hist_clear(hist_clear),                            // Input: Clear operation trigger
-//     .hist_clear_op(hist_clear_op),                     // Input: Clear opcode
-//     .hist_clear_chid(hist_clear_chid),                  // Input: Clear associated chid
-//     .hist_clear_array(hist_clear_array),                // Input: Clear associated histogram ID 
-//     .hist_adrs(axi_raddr[9:2]),                         // Input: Histogram read address[7:0]: {chid[3:0], bucket_num[3:0]}
-//     .hist_dout(hist_pci2sbu_message_dout)               // Output: Histogram read data[31:0]
-//     );
-
-
-//===================================================================================================================================
-// Histogram sbu2pci_responses_size
-//===================================================================================================================================
-//
-//  zuc_histo zuc_hist_sbu2pci_response_size
-//    (
-//     .hist_clk(clk),
-//     .hist_reset(reset || afu_reset),
-//     .hist_id(HIST_ARRAY_SBU2PCI_RESPONSES),             // Input: Histogram Instance ID (identifier)
-//     .hist_enable(hist_sbu2pci_response_enable),         // Input: Histogram enable
-//     .hist_event(hist_sbu2pci_response_event),           // Input: An event to be captured
-//     .hist_event_chid(hist_sbu2pci_response_event_chid), // Input: Event associated chid
-//     .hist_event_value(hist_sbu2pci_response_event_size),// Input: Event associated weight (i.e: packet size)
-//     .hist_clear(hist_clear),                            // Input: Clear operation trigger
-//     .hist_clear_op(hist_clear_op),                      // Input: Clear opcode
-//     .hist_clear_chid(hist_clear_chid),                  // Input: Clear associated chid
-//     .hist_clear_array(hist_clear_array),                // Input: Clear associated histogram ID 
-//     .hist_adrs(axi_raddr[9:2]),                         // Input: Histogram read address[7:0]: {chid[3:0], bucket_num[3:0]}
-//     .hist_dout(hist_sbu2pci_response_dout)              // Output: Histogram read data[31:0]
-//     );
 
 
 //===================================================================================================================================

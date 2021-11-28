@@ -1,53 +1,9 @@
 // hmac module
-// A message is read from fifo_in and delivered to zuc core, then aggregated into fifo_out.
+// A message is read from fifo_in and delivered to a core, then aggregated into fifo_out.
 // This scheme is triggered if there is at least one full message in fifo_in, and there is sufficient space in fifo_out to hold the resulting response.
 //    incoming message size is extracted from first fifo_in line (message header, see below)
 //    fifo_out free count is locally calculated:  == MODULE_FIFO_OUT_SIZE - fifo_out_data_count[]
 // The expected space in fifo_out depends on the incoming message size & command:
-// 1. If (command == Confidentiality), then expected fifo_out space is >= fifo_in message_size
-// 2. If (command == Integrity), then expected fifo_out space is constant 512b, 1 fifo_out line
-//
-// First line read from fifo_in is the message header:
-//
-// ==============================================================================
-// ZUC request header format (as agreed with Haggai & Eitan, 28-Apr-2020):
-// ==============================================================================
-// pci2sbu[] | Description
-// ----------+--------------------------------------------------------------------
-// 511:504     Opcode[7:0]:
-//             0 – encrypt/decrypt
-//             1 – authenticate
-// 503:496     Reserved
-// 495:480     Message length[15:0] in bytes
-// 479:416     Message ID (not used by zuc AFU)
-// 415:288     Key[127:0]
-// 287:160     IV[127:0]
-// 159:0       Reserved
-//
-//
-// ==============================================================================
-// ZUC cipher response header format (as agreed with Haggai & Eitan, 28-Apr-2020):
-// ==============================================================================
-// pci2sbu[] | Description
-// ----------+--------------------------------------------------------------------
-// 511:504     Opcode (same as in message request)
-// 503:480     Reserved
-// 479:416     Message ID (same as in message request)
-// 415:0       Reserved
-//
-//
-// ==============================================================================
-// ZUC auth response header format (as agreed with Haggai & Eitan, 28-Apr-2020):
-// ==============================================================================
-// pci2sbu[] | Description
-// ----------+--------------------------------------------------------------------
-// 511:504     Opcode (same as in message request)
-// 503:480     Reserved
-// 479:416     Message ID (same as in message request)
-// 415:160     Reserved
-// 159:128     MAC
-// 127:0       Reserved (tkeep = 128'b0)
-//
 //
 // ==============================================================================
 // Internal AFU message header info:
@@ -108,7 +64,6 @@ module hmac_module (
   wire [15:0] fifo_out_free_count;
   wire 	      fifo_out_free;
   reg [31:0]  zm_mac_reg;
-//  reg [63:0]  zm_keystream64;
   reg [95:0]  zm_keystream96;
   reg [31:0]  zm_keystreamQ;
   reg [15:0]  zm_in_message_size;
@@ -191,8 +146,8 @@ module hmac_module (
 
   reg [127:0] zm_iv;               // Initializatioin Vector
   reg [127:0] zm_key;              // Initialization Key
-  reg 	      zm_go;               // zuc_core is triggered to start. Asserted after all inputs (IV, Key, pc_text) are ready
-  reg 	      zm_go_asserted;      // zuc_core is triggered to start. Asserted after all inputs (IV, Key, pc_text) are ready
+  reg 	      zm_go;               // core is triggered to start. Asserted after all inputs (IV, Key, pc_text) are ready
+  reg 	      zm_go_asserted;      // core is triggered to start. Asserted after all inputs (IV, Key, pc_text) are ready
   wire [31:0] zm_keystream;        // holding flipped bytes of zm_keystream_out
   wire 	      zm_keystream_valid;  // Output - a valid 32bit output text on zm_keystream. Valid for 1 clock
   wire [63:0] zm_bypass_keep;
@@ -210,17 +165,17 @@ module hmac_module (
   assign fifo_out_free = (fifo_out_free_count > zm_in_message_lines) ? 1'b1 : 1'b0;
 
   // fifo_in watermark
-  // Incoming messages are handled (movede to zuc_core), once the specified watermark has been exceeded.
+  // Incoming messages are handled (movede to core), once the specified watermark has been exceeded.
   // zm_in_watermark[4:0]:
   //      [4]   - A new watermark is present at zm_in_watermark[3:0]. This indication is valid for 1 clock only !!
   //              
   //    [3:0]   - zm_in_watermark_data
   //              Fifo_in capacity high watermark, 32 fifo lines (2KB) per tick. Default 0
-  //              The transfer from fifo_in to zuc_core is held until this watermark is exceeded.
-  //              This capability is aimed for testing the zuc_cores utilization & tpt:
-  //              1. To utilize all zuc_cores, there is a need to apply the messages to the cores as fast as possible.
+  //              The transfer from fifo_in to core is held until this watermark is exceeded.
+  //              This capability is aimed for testing the cores utilization & tpt:
+  //              1. To utilize all cores, there is a need to apply the messages to the cores as fast as possible.
   //              2. To eliminate the dependence on pci2sbu incoming messages rate, we accumulate into fifo_in first
-  //              3. Once the watermark is exceeded, the messages are fed to the zuc cores at full speed (512b/clock). 
+  //              3. Once the watermark is exceeded, the messages are fed to the cores at full speed (512b/clock). 
   //              Usage Note: This watermark is effective only once, immediateley after writing afu_ctrl1.
   //                          To reactivate, rewrite to afu_ctrl1 is required 
   reg 	      zm_in_watermark_valid;
@@ -255,7 +210,7 @@ module hmac_module (
 
   always @(posedge zm_clk) begin
     if (zm_reset) begin
-      zm_in_watermark_valid <= 1; // Default zero watermark is assumed, thus messages are allowed from fifo_in to zuc_core following reset 
+      zm_in_watermark_valid <= 1; // Default zero watermark is assumed, thus messages are allowed from fifo_in to core following reset 
     end
     else
       begin
@@ -300,7 +255,6 @@ module hmac_module (
     if (zm_reset) begin
       hmacin_module_nstate <= HMACIN_IDLE;
       hmacin_module_return_state <= HMACIN_IDLE;
-//      zuc_module_id <= 0;
       pkts_fwd_in_data_source <= 4'h0;
       hmac_test_mode_last <= 1'b0;
       timestamp <= 48'h00000000000;
@@ -319,7 +273,6 @@ module hmac_module (
       zm_bypass_or_header <= 1'b0;
       zm_wait_keystream <= 2'b11;
       zm_mac_reg <= 32'h00000000;
-//      zm_keystream64[63:0] <= 64'h0000000000000000;
       zm_keystream96[95:0] <= 96'h0000000000000000;
       zm_out_status_data <= 8'h00;
       zm_out_status_valid <= 1'b0;
@@ -328,9 +281,9 @@ module hmac_module (
       zm_idle <= 64'h0000000000000000;
       
 
-      // Reporting zuc operation progress.
-      // Used by zuc_afu to track the zuc_module total_load.
-      // zuc_modules total_load is then used for a load based input_buffer to fifox_in arbitration
+      // Reporting operation progress.
+      // Used by hmac_afu to track the module's total_load.
+      // total_load is then used for a load based input_buffer to fifox_in arbitration
       //
       // zm_progress[15:0]:
       // [3:0] - Reporting a micro operation completed: 
@@ -338,7 +291,7 @@ module hmac_module (
       //       0010 - C/I/Bypass operation: another 512b line is done
       //       x1xx - reserved
       //       1xxx - reserved
-      // [7:4]  - zuc command
+      // [7:4]  - command
       // [15:8] - last_word index within a 512b line 
       zm_progress <= 16'h00;
       zm_test_mode_keystream_valid <= 1'b0;
@@ -405,138 +358,8 @@ module hmac_module (
 
 		  zm_in_readyQ <= 1'b1;
 		  hmacin_module_nstate <= HMACIN_METADATA;
-		  
-//		  hmacin_module_nstate <= HMACIN_SAMPLE_MESSAGE_HEADER;
-		  
-//		  else if (~zm_in_user && zm_out_ready)
-//		    // An Ethernet header: If fifo_out is not full, bypass the eth header to fifo_out
-//		    begin
-//		      zm_bypass_or_header <= 1'b1;
-//		      zm_in_readyQ <= 1'b1;
-//		      zm_bypass_or_header_valid <= 1'b1;
-//		      hmacin_module_nstate <= HMACIN_BYPASS_ETH_HEADER;
-//     		    end
 		end
 	    end
-	  
-//	  HMACIN_BYPASS_ETH_HEADER:
-//	    begin
-//	      zm_in_readyQ <= 1'b0;
-//	      zm_bypass_or_header <= 1'b0;
-//	      zm_bypass_or_header_valid <= 1'b0;
-//	      hmacin_module_nstate <= HMACIN_SAMPLE_MESSAGE_HEADER;
-//	    end // else: !if(zm_reset)
-    
-//	  HMACIN_FWD_PACKET_HEADER:
-//	    begin
-//	      // Sampling related message header info. The header is still NOT dropped from fifo_in.
-//	      // In CMD_INTEG command, the headr is NOT bypassed to zm_out_data. Instead, it is sampled here, to be merged with the final MAC
-//	      // We get here ether directly from IDLE or after bypassing an eth header.
-//	      // If fifo_in has been read (to drop the eth header), we need to verify that next fifo_in line is valid,
-//	      // before sampling mesage header info
-//
-//	      if (zm_in_valid)
-//		begin
-//		  
-//		  zm_in_header <= zm_in_data;
-//		  
-//		  zm_in_message_lines <= {4'h0, zm_in_packet_flits}; // Message size in 512b ticks
-////		  zm_cmd <= zm_in_force_modulebypass ? MESSAGE_CMD_MODULEBYPASS : zm_in_data[511:504];
-////		  zm_key <= zm_in_data[415:288];
-////		  zm_iv <= zm_in_data[287:160];
-////		  zm_channel_id[3:0] <= zm_in_data[23:20]; //  TBD: Verify input buffer CTRL adds channel_id to fifox_in
-//		  zm_init_count <= 6'h00;
-////		  zm_mac_reg <= 32'h00000000; // Prior to MAC calculation, initial MAC should be cleared
-//
-//
-//		  // First line to module is the hmac metadata
-//		  // The key is previously read is already from keys_buffer
-//		  // module_in_metadata[63:0] = hmac key
-//		  // module_in_metadata[79:64] = packet length (TUSER.Length)
-//		  // module_in_metadata[95:80] = Steering Tag (TUSER.steering_tag)
-//                  key_in_data  <= zm_in_data[63:0];
-//		  zm_in_message_size <= zm_in_data[79:64]; // Message size in bytes
-//		  zm_in_message_bits <= {zm_in_data[79:64] << 3, 3'b0}; // Message size in bits
-//
-//		  // The packet metadata is also written to pkts_fwd fifo.
-//		  // Write to pkts_fwd fifo and drop the message metadata from zm_in
-//		  pkts_fwd_in_vld <= 1'b1;
-//		  zm_in_readyQ <= 1'b1;
-//		  hmacin_module_nstate <= HMACIN_FLIT1;
-//		end
-//	    end
-	  
-//	  HMACIN_WAIT_FIFO_OUT:
-//	    begin
-//	      case (zm_cmd)
-//		MESSAGE_CMD_CONF:
-//		  begin
-//		    // Verify there is sufficient space in fifo_out to host the expected response
-//		    // zm_in_message_lines - number of full 512b occupying the message 
-//		    if (zm_out_ready && fifo_out_free)
-//		      begin
-//			zm_bypass_or_header <= 1'b1;
-//			hmacin_module_nstate <= HMACIN_BYPASS_MESSAGE_HEADER;
-//		      end
-//		    // else
-//		    //    wait for sufficient space in fifo_out
-//		  end
-//		
-//		MESSAGE_CMD_INTEG:
-//		  begin
-//		    // CMD_INTEG response is a single 512b line,
-//		    //    which is the merge of final MAC and the previously sampled zm_in_header
-//		    // The header is not bypassed to zm_out_data, so going directly to INIT.
-//		    if (zm_out_ready)
-//		      begin
-//			// At least 1 free line in fifo_out
-//			if (zm_in_test_mode && zm_in_user)
-//			  // In RDMA message the INTEG response header is NOT written now but rather at the end.
-//			  // Yet, in test mode, we do need to write the header, such that the subsequent test_mode
-//			  // data writes will follow a "familiar" header.
-//			  // Otherwise (without a leading header), the sbu2pci SM won't recognize this response message
-//			  // Eventually an RDMA INTEG response will have the header twice: at the beginning and at the end,
-//			  // while only the second header will include the final MAC. 
-//			  begin
-//			    zm_bypass_or_header <= 1'b1;
-//			    hmacin_module_nstate <= HMACIN_BYPASS_MESSAGE_HEADER;
-//			  end
-//			else
-//			  begin
-//			    // Drop header line from fifo_in, without bypass to zm_out_data
-//			    zm_in_readyQ <= 1'b1;
-//			    hmacin_module_nstate <= HMACIN_INIT;
-//			  end
-//		      end
-// 		  end
-//		
-//		MESSAGE_CMD_MODULEBYPASS:
-//		  begin
-//		    // Verify there is sufficient space in fifo_out to host the bypassed message
-//		    if (zm_out_ready && fifo_out_free)
-//		      begin
-//			zm_bypass_or_header <= 1'b1;
-//			hmacin_module_nstate <= HMACIN_BYPASS;
-//		      end
-//		    // else
-//		    // Stay here, wait for sufficient space in fifo_out
-//		  end
-//		
-//		default:
-//		  begin
-//		    // Illegal opcode: Bypass the message to fifo_out
-//		    // zuc_module is not supposed to "see" illegal opcodes, but just in case...
-//		    // Verify there is sufficient space in fifo_out to host the bypassed message
-//		    if (zm_out_ready && fifo_out_free)
-//		      begin
-//			zm_bypass_or_header <= 1'b1;
-//			hmacin_module_nstate <= HMACIN_BYPASS;
-//		      end
-//		    // else
-//		    // Stay here, wait for sufficient space in fifo_out
-//		  end
-//	      endcase // case (zm_cmd)
-//	    end
 	  
 	  HMACIN_METADATA:
 	    begin
@@ -626,39 +449,6 @@ module hmac_module (
 		  zm_in_readyQ <= 1'b0;
 		  pkts_fwd_in_vld <= 1'b0;
 		end
-	      
-	      // zm_go <= 1'b1; // start zuc_core
-	      // zm_go_asserted <= 1'b1;
-	      // zm_bypass_or_header <= 1'b0;
-	      // zm_bypass_or_header_valid <= 1'b0;
-
-	      // Wait for
-	      // 1 clock LFSR init
-	      // 32+1 clocks LFSRInit iterations
-	      // 2 more clocks for first keystream_valid
-//	      if (zm_init_count >= 36)
-//		begin
-//		  // Message header line already dropped, and first payload line is avaiable at zm_in_data.
-//		  // No need to check for zm_in_message_valid. fifo_in is guaranteed to have the whole message (minimum of two 512b lines)
-//		  zm_text_in_reg <= zm_in_data;
-//		  zm_in_readyQ <= 1'b1;
-//		  zm_progress <= {8'h00, zm_cmd[3:0], 4'b0001};
-//		  zm_wait_keystream <= 2'b11;
-//
-//		  zm_text_32b_index <= 6'h00;
-//		  zm_message_size_inprogress <= 16'h0000;
-//		  zm_keystream96[95:0] <= 96'h0000000000000000;
-
-		  // Module test mode: Dump latter read text_in_reg to zm_out
-//		  zm_test_mode_text_in_valid <= zm_in_test_mode ? 1'b1 : 1'b0;
-//		  hmacin_module_nstate <= (zm_cmd == MESSAGE_CMD_CONF) ? HMACIN_RUN_C : HMACIN_WAIT_2KEYS;
-//		end
-//	      else
-//		begin
-//		  zm_in_readyQ <= 1'b0;
-//		  zm_progress <= {8'h00, zm_cmd[3:0], 4'b0000};
-//		  zm_init_count <= zm_init_count + 1'b1;
-//		end	      
 	    end
 	  
 	  HMACIN_FLIT2:
@@ -684,7 +474,6 @@ module hmac_module (
 	      
 	    end
 
-//    HMACIN_FLIT3                  = 5'b00101,
 	  HMACIN_FLIT3:
 	    begin
 	      if (zm_in_valid && pkts_fwd_in_rdy)
@@ -695,9 +484,6 @@ module hmac_module (
 		  body_baseurl[159:0] <= zm_in_data[511:352]; // BODY trail, 20B
 		  sig_baseurl <= zm_in_data[343:0];         // SIG, 43B
 
-//		  // In test mode, we go to *WRITE_WAIT state, to increment pkts_in_data_source, 1 clock before next test_mode write to pkts_ifo
-//		  hmacin_module_return_state <= HMACIN_SAMPLE_HEAD_BODY_SIG;    // Relevant to test_mode only;
-//		  hmacin_module_nstate <= hmac_module_test_mode ? HMACIN_TEST_MODE_WRITE_WAIT : HMACIN_SAMPLE_HEAD_BODY_SIG;
 		  hmacin_module_nstate <= HMACIN_SAMPLE_HEAD_BODY_SIG;
 		end
 	      else
@@ -708,7 +494,6 @@ module hmac_module (
 		end
 	    end
 
-//    HMACIN_SAMPLE_HEAD_BODY_SIG   = 5'b00110,
 	  HMACIN_SAMPLE_HEAD_BODY_SIG:
 	    begin
 	      // The written data is driven outside this SM
@@ -739,7 +524,6 @@ module hmac_module (
 		end
 	    end
 	  
-//    HMACIN_FWD_PACKET_TRAIL       = 5'b00111,
 	  HMACIN_FWD_PACKET_TRAIL:
 	    begin
 	      sha1_text_vld <= 1'b0;
@@ -762,7 +546,6 @@ module hmac_module (
 
 		      // test_mode: Write sha1_text
 		      pkts_fwd_in_vld <= hmac_module_test_mode ? 1'b1 : 1'b0;
-//		      pkts_fwd_in_vld <= 1'b0;
 
 		      hmacin_module_return_state <= HMACIN_TEST_MODE2;
 		      hmacin_module_nstate <= hmac_module_test_mode ? HMACIN_TEST_MODE_WRITE_WAIT : HMACIN_END;
@@ -776,7 +559,6 @@ module hmac_module (
 		end
 	    end
 
-//    HMACIN_TEST_MODE_WRITE_WAIT   = 5'b01000,
 	  HMACIN_TEST_MODE_WRITE_WAIT:
 	    begin
 	      zm_in_readyQ <= 1'b0;
@@ -795,7 +577,6 @@ module hmac_module (
 	      hmacin_module_nstate <= hmacin_module_return_state;
 	    end
 
-//    HMACIN_TEST_MODE2             = 5'b01001,
 	  HMACIN_TEST_MODE2:
 	    begin
 	      // test_mode: writing source=sha2_text
@@ -807,7 +588,6 @@ module hmac_module (
 	      hmacin_module_nstate <= HMACIN_TEST_MODE_WRITE_WAIT;
 	    end
 
-//    HMACIN_TEST_MODE3             = 5'b01010,
 	  HMACIN_TEST_MODE3:
 	    begin
 	      if (sha1_hout_vld && sha1_hout_rdy && pkts_fwd_in_rdy)
@@ -927,168 +707,14 @@ module hmac_module (
       end
   end
   
-// hmac module output stats
-//  always @(posedge zm_clk) begin
-//    if (zm_reset) begin
-//      zm_core_util <=  64'h0000000000000000;
-//      zm_core_elapsed_time <= 64'h0000000000000001; // To avoid DIVZ after reset
-//      zm_core_busy_time <= 48'h000000000000;
-//      zm_out_stats <= 32'h00000000;
-//      zm_clc_freq <= ZUC_AFU_FREQ << 20;  // clock freq (hz)
-//    end
-//    else
-//      begin
-//	zm_core_elapsed_time <= zm_core_elapsed_time + 1;
-//	if (hmacin_module_nstate != HMACIN_IDLE)
-//	  zm_core_busy_time <= zm_core_busy_time + 1;
-//	
-//	zm_core_util <= (zm_core_busy_time << 16) / zm_core_elapsed_time;
-//	zm_out_stats <= {zm_core_util[15:0], 12'h000, hmacin_module_nstate};
-//      end
-//  end
-
-
-// Module test mode: Accumulating keystream words into a 512b flit:
-//  reg [4:0] 	zm_test_mode_keystream_count;
-//  reg 		zm_keystream_validQ;
-//
-//  always @(posedge zm_clk) begin
-//    if (zm_reset || (hmacin_module_nstate == HMACIN_IDLE)) begin
-//      zm_test_mode_keystream <= 512'b0;
-//      zm_test_mode_keystream_count <= 5'h0f;
-//      zm_keystreamQ <= 32'b0;
-//      zm_keystream_validQ <= 1'b0;
-//    end
-//    else
-//      begin
-	// Keystreams are continuously accumulated, while main SM is not idle
-	// Accumulation direction: from MSB to LSB (first keystream to [511:480] ...)
-	// Once every 16 iterations, the register is cleared, to assure loading next keystreams into a clean register
-	// The register *_valid signal is controlled by main SM
-//	zm_keystreamQ <= zm_keystream;
-//	zm_keystream_validQ <= zm_keystream_valid;
-//
-//	if (zm_keystream_validQ && ~zm_done)
-//	  zm_test_mode_keystream <= {zm_test_mode_keystream[480:0], zm_keystreamQ};
-//      end
-//  end
-
-  
-  // zuc_core output text aggregation/MAC calc logic:
-  // 
-  
   // ???? Verify that zm_out_accum_reg[31:0] (last 32b in a line) is valid at the time of write to fifo_out
   //
-  // Bypass cmd: Selecting between bypassed data and zuc_core output
+  // Bypass cmd: Selecting between bypassed data and core output
   assign zm_bypass_keep = (zm_in_message_size >= FIFO_LINE_SIZE) ? 
 			  // TBD: Replace 64'b1 with count_to_keep(zm_in_message_size[5:0]): 
 			  FULL_LINE_KEEP : 64'b1; 
   
-//  assign zm_out_data = (zm_bypass_or_header || zm_test_mode_text_in_valid)
-//		       ?
-//		         zm_in_data
-//		       :                                              // Bypass mode
-//		         zm_test_mode_data_valid
-//		         ?
-//		           zm_test_mode_data                          // at module test_mode, lfsr dumped to fifo_out
-//		         :
-//		           (zm_done && (zm_cmd == MESSAGE_CMD_INTEG))
-//			   ?
-//		           // INTEG response[416:160] should be cleared when writen to sbu2pci_data.
-//		           // but in bypass or test_mode, this fild holds the origigal IV & Key.
-//		           // INTEG response[59:0] should be cleared when writen to sbu2pci_data.
-//		           // but until then, we use this field to transfer some medatata, used for message_id ordering
-//		           // See "Internal AFU Message Header" in zuc_afu.v for details. 
-//		           // Corresponding scu2pci_keep bits will be cleared anyway
-// 		             {zm_in_header[511:160], zm_mac_reg, 68'b0, zm_in_header[59:0]}
-//		           :
-//		             zm_out_accum_reg;                                     // CONF response
-// 
-//  assign zm_test_mode_data_valid = zm_in_test_mode ?
-////				   (zm_test_mode_lfsr_valid || zm_test_mode_keystream_valid || zm_test_mode_text_in_valid) :
-//				   (zm_test_mode_lfsr_valid || zm_test_mode_keystream_valid) :
-//				   1'b0;
-//  assign zm_test_mode_data = zm_test_mode_lfsr_valid ? zm_test_mode_lfsr :
-//			     zm_test_mode_keystream;
-////			     ? zm_test_mode_keystream :
-////			     zm_text_in_reg;
-//
-//  assign zm_out_keep = zm_bypass_or_header ? zm_bypass_keep : zm_core_keep;
-//  assign zm_out_last = zm_bypass_or_header ? zm_in_last : zm_core_last;
-//  assign zm_out_valid = zm_bypass_or_header ? zm_bypass_or_header_valid : (zm_core_valid || zm_test_mode_data_valid || zm_test_mode_text_in_valid);
   assign zm_in_ready = zm_in_readyQ;
-
-//  always @(*) begin
-//    // MAC bytemask, to support byte rolution
-//    if (zm_in_message_bits > 'd24)
-//      begin
-//	mac_bytes <= 4'b1111;
-//	cipher_bytes <= zm_in_force_corebypass ? 32'h00000000 : 32'hffffffff;
-//      end
-//    else if (zm_in_message_bits > 'd16)
-//      begin
-//	mac_bytes <= 4'b1110;
-//	cipher_bytes <= zm_in_force_corebypass ? 32'h00000000 : 32'hffffff00;
-//      end
-//    else if (zm_in_message_bits > 'd8)
-//      begin
-//	mac_bytes <= 4'b1100;
-//	cipher_bytes <= zm_in_force_corebypass ? 32'h00000000 : 32'hffff0000;
-//      end
-//    else if (zm_in_message_bits > 0)
-//      begin
-//	mac_bytes <= 4'b1000;
-//	cipher_bytes <= zm_in_force_corebypass ? 32'h00000000 : 32'hff000000;
-//      end
-//    else
-//      begin
-//	mac_bytes <= 4'b0000;
-//	cipher_bytes <= zm_in_force_corebypass ? 32'h00000000 : 32'hffffffff;
-//      end
-//  end
-  
-
-//  // MAC logic:
-//  always @(*) begin
-//    zm_mac0  = zm_text_in_reg[511] && mac_bytes[3] ? zm_keystream96[95:64] : 32'h00000000;
-//    zm_mac1  = zm_text_in_reg[510] && mac_bytes[3] ? zm_keystream96[94:63] : 32'h00000000;
-//    zm_mac2  = zm_text_in_reg[509] && mac_bytes[3] ? zm_keystream96[93:62] : 32'h00000000;
-//    zm_mac3  = zm_text_in_reg[508] && mac_bytes[3] ? zm_keystream96[92:61] : 32'h00000000;
-//    zm_mac4  = zm_text_in_reg[507] && mac_bytes[3] ? zm_keystream96[91:60] : 32'h00000000;
-//    zm_mac5  = zm_text_in_reg[506] && mac_bytes[3] ? zm_keystream96[90:59] : 32'h00000000;
-//    zm_mac6  = zm_text_in_reg[505] && mac_bytes[3] ? zm_keystream96[89:58] : 32'h00000000;
-//    zm_mac7  = zm_text_in_reg[504] && mac_bytes[3] ? zm_keystream96[88:57] : 32'h00000000;
-//    zm_mac8  = zm_text_in_reg[503] && mac_bytes[2] ? zm_keystream96[87:56] : 32'h00000000;
-//    zm_mac9  = zm_text_in_reg[502] && mac_bytes[2] ? zm_keystream96[86:55] : 32'h00000000;
-//    zm_mac10 = zm_text_in_reg[501] && mac_bytes[2] ? zm_keystream96[85:54] : 32'h00000000;
-//    zm_mac11 = zm_text_in_reg[500] && mac_bytes[2] ? zm_keystream96[84:53] : 32'h00000000;
-//    zm_mac12 = zm_text_in_reg[499] && mac_bytes[2] ? zm_keystream96[83:52] : 32'h00000000;
-//    zm_mac13 = zm_text_in_reg[498] && mac_bytes[2] ? zm_keystream96[82:51] : 32'h00000000;
-//    zm_mac14 = zm_text_in_reg[497] && mac_bytes[2] ? zm_keystream96[81:50] : 32'h00000000;
-//    zm_mac15 = zm_text_in_reg[496] && mac_bytes[2] ? zm_keystream96[80:49] : 32'h00000000;
-//    zm_mac16 = zm_text_in_reg[495] && mac_bytes[1] ? zm_keystream96[79:48] : 32'h00000000;
-//    zm_mac17 = zm_text_in_reg[494] && mac_bytes[1] ? zm_keystream96[78:47] : 32'h00000000;
-//    zm_mac18 = zm_text_in_reg[493] && mac_bytes[1] ? zm_keystream96[77:46] : 32'h00000000;
-//    zm_mac19 = zm_text_in_reg[492] && mac_bytes[1] ? zm_keystream96[76:45] : 32'h00000000;
-//    zm_mac20 = zm_text_in_reg[491] && mac_bytes[1] ? zm_keystream96[75:44] : 32'h00000000;
-//    zm_mac21 = zm_text_in_reg[490] && mac_bytes[1] ? zm_keystream96[74:43] : 32'h00000000;
-//    zm_mac22 = zm_text_in_reg[489] && mac_bytes[1] ? zm_keystream96[73:42] : 32'h00000000;
-//    zm_mac23 = zm_text_in_reg[488] && mac_bytes[1] ? zm_keystream96[72:41] : 32'h00000000;
-//    zm_mac24 = zm_text_in_reg[487] && mac_bytes[0] ? zm_keystream96[71:40] : 32'h00000000;
-//    zm_mac25 = zm_text_in_reg[486] && mac_bytes[0] ? zm_keystream96[70:39] : 32'h00000000;
-//    zm_mac26 = zm_text_in_reg[485] && mac_bytes[0] ? zm_keystream96[69:38] : 32'h00000000;
-//    zm_mac27 = zm_text_in_reg[484] && mac_bytes[0] ? zm_keystream96[68:37] : 32'h00000000;
-//    zm_mac28 = zm_text_in_reg[483] && mac_bytes[0] ? zm_keystream96[67:36] : 32'h00000000;
-//    zm_mac29 = zm_text_in_reg[482] && mac_bytes[0] ? zm_keystream96[66:35] : 32'h00000000;
-//    zm_mac30 = zm_text_in_reg[481] && mac_bytes[0] ? zm_keystream96[65:34] : 32'h00000000;
-//    zm_mac31 = zm_text_in_reg[480] && mac_bytes[0] ? zm_keystream96[64:33] : 32'h00000000;
-//    
-//    zm_mac_0_7   = zm_mac0  ^ zm_mac1  ^ zm_mac2  ^ zm_mac3  ^ zm_mac4  ^ zm_mac5  ^ zm_mac6  ^ zm_mac7;
-//    zm_mac_8_15  = zm_mac8  ^ zm_mac9  ^ zm_mac10 ^ zm_mac11 ^ zm_mac12 ^ zm_mac13 ^ zm_mac14 ^ zm_mac15;
-//    zm_mac_16_23 = zm_mac16 ^ zm_mac17 ^ zm_mac18 ^ zm_mac19 ^ zm_mac20 ^ zm_mac21 ^ zm_mac22 ^ zm_mac23;
-//    zm_mac_24_31 = zm_mac24 ^ zm_mac25 ^ zm_mac26 ^ zm_mac27 ^ zm_mac28 ^ zm_mac29 ^ zm_mac30 ^ zm_mac31;
-//    zm_mac_0_31  = zm_mac_0_7 ^ zm_mac_8_15 ^ zm_mac_16_23 ^ zm_mac_24_31;
-//  end  
 
   reg hmacout_pass_in_progress;
 
@@ -1172,9 +798,6 @@ module hmac_module (
 
 	  HMACOUT_PACKET_PASS:
 	    begin
-//	      hmac_out_rdy <= 1'b0;
-//	      sig_out_rdy <= 1'b0;
-
 	      // Read a complete packet from pkts_fwd fifo and write to zm_out
 	      // pkts_fwd_out_vld is not checked here, since it is a packet fifo, and its out_vld  was already checked.
 	      if (zm_out_ready)
@@ -1182,11 +805,6 @@ module hmac_module (
 		  zm_out_valid <= 1'b1;
 		  pkts_fwd_out_rdy <= 1'b1;
 
-//		  if (pkts_fwd_out_last)
-//		    // End of packet transfer		    
-//		    hmacout_module_nstate <= HMACOUT_END;
-//		  else
-//		    hmacout_module_nstate <= HMACOUT_PACKET_PASS;
 		  hmacout_module_nstate <= HMACOUT_PACKET_WAIT;
 		end
 
@@ -1207,11 +825,6 @@ module hmac_module (
 	      // pkts_fwd_out_vld is not checked here, since it is a packet fifo, and its out_vld  was already checked.
 	      pkts_fwd_out_rdy <= 1'b1;
 	      
-//	      if (pkts_fwd_out_last)
-//		// End of packet drop
-//		hmacout_module_nstate <= HMACOUT_END;
-//	      else
-//		hmacout_module_nstate <= HMACOUT_PACKET_DROP;
 	      hmacout_module_nstate <= HMACOUT_PACKET_WAIT;
 	    end
 	  
@@ -1220,10 +833,9 @@ module hmac_module (
 	      zm_out_valid <= 1'b0;
 	      pkts_fwd_out_rdy <= 1'b0;
 
-		// pass operation is terminated if
-		// 1. end of packet and not in test_mode: a single packet is passed in normal mode.
-		// 2. In test mode, the last flit has been written: the whole pkts_fwd fifo is emptied, independent of tlast
-//	      if (pkts_fwd_out_last && ~hmac_module_test_mode || ((pkts_fwd_data_count == 10'b1) && hmac_module_test_mode))
+	      // pass operation is terminated if
+	      // 1. end of packet and not in test_mode: a single packet is passed in normal mode.
+	      // 2. In test mode, the last flit has been written: the whole pkts_fwd fifo is emptied, independent of tlast
 
 	      // Test mode: Selecting every other pkts_fwd_out_tlast
 	      if (pkts_fwd_out_last)
@@ -1363,7 +975,6 @@ module hmac_module (
   // sha module3:
   // ===========================================================================================================
   wire [511:0]  sha3_text;
-//  wire [31:0]   sha3_text_padding;
   reg 	       sha3_text_vld;
   wire 	       sha3_text_rdy;
   wire [255:0] sha3_hin;
@@ -1693,7 +1304,6 @@ module hmac_module (
   // pkts_fwd_in_data: Select the desired data to be written between normal_mode input and the various inputs during hmac_module_test_mode
   // In hmac_module_test mode, selecting the written data out of 10 various sources
   reg [3:0]    pkts_fwd_in_data_source;
-//  assign  pkts_fwd_in_data = zm_in_data;
 
   always @(*) begin
     if (hmac_module_test_mode)
@@ -1802,11 +1412,6 @@ module hmac_module (
 
 
 
-// calculated sig  encoder:
-//  wire [215:0] head_text;    // HEAD_text, 27B
-//  wire [263:0] body_text;    // BODY_text, 33B
-//  wire [257:0] sig_text;     // SIG_text, 32.25B
-  
   // hmac text to base64url:
   text2base64url sigtext2url_42(hmac_out_text[`U42], hmac_out_baseurl[`B42]);
   text2base64url sigtext2url_41(hmac_out_text[`U41], hmac_out_baseurl[`B41]);

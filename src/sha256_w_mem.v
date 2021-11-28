@@ -214,8 +214,6 @@ module sha256_w_mem(
            {w_14[18 : 0], w_14[31 : 19]} ^
            {10'b0000000000, w_14[31 : 10]};
 
-//      w_new = d1 + w_9 + d0 + w_0;
-
       if (init)
         begin
           w_mem00_new = block[511 : 480];
