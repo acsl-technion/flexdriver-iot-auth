@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2021 Gabi Malka.
+ * Licensed under the 2-clause BSD license, see LICENSE for details.
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
 module csa_32x3(
                 input wire [31:0]  in1,
                 input wire [31:0]  in2,
